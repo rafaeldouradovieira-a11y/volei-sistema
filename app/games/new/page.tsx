@@ -3,15 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -42,23 +33,12 @@ export default function NewGamePage() {
     const supabase = createClient();
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/auth?redirect=/games/new");
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/auth?redirect=/games/new"); return; }
 
       const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .single();
-      if (!profile) {
-        router.push("/auth?redirect=/games/new");
-        return;
-      }
+        .from("profiles").select("id").eq("id", user.id).single();
+      if (!profile) { router.push("/auth?redirect=/games/new"); return; }
 
       const { data, error } = await supabase
         .from("games")
@@ -78,158 +58,213 @@ export default function NewGamePage() {
         .single();
 
       if (error) throw error;
-
       toast.success("Vôlei criado!");
       router.push(`/games/${data.id}`);
     } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Erro ao criar vôlei"
-      );
+      toast.error(err instanceof Error ? err.message : "Erro ao criar vôlei");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b sticky top-0 z-10">
+    <div className="min-h-screen" style={{ background: "var(--color-cream)" }}>
+      {/* Header */}
+      <header
+        className="sticky top-0 z-10"
+        style={{ background: "var(--color-brand)" }}
+      >
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
           <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft size={16} />
-            </Button>
+            <button
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ color: "rgba(255,255,255,0.7)" }}
+            >
+              <ArrowLeft size={18} />
+            </button>
           </Link>
-          <h1 className="font-semibold text-lg">Criar vôlei</h1>
+          <h1
+            className="font-extrabold text-base tracking-tight"
+            style={{
+              fontFamily: "var(--font-syne)",
+              color: "var(--color-lime)",
+            }}
+          >
+            CRIAR VÔLEI
+          </h1>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Informações do jogo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Título (opcional)</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  placeholder="Ex: Vôlei da galera"
-                  value={form.title}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Data *</Label>
-                  <Input
-                    id="date"
-                    name="date"
-                    type="date"
-                    value={form.date}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Horário *</Label>
-                  <Input
-                    id="time"
-                    name="time"
-                    type="time"
-                    value={form.time}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="location">Local *</Label>
-                <Input
-                  id="location"
-                  name="location"
-                  placeholder="Ex: Arena Beach Club"
-                  value={form.location}
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Section: básico */}
+          <Section title="Informações básicas">
+            <Field label="Título (opcional)">
+              <input
+                name="title"
+                placeholder="Ex: Vôlei da galera"
+                value={form.title}
+                onChange={handleChange}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="Data *">
+                <input
+                  name="date"
+                  type="date"
+                  value={form.date}
                   onChange={handleChange}
                   required
                 />
-              </div>
+              </Field>
+              <Field label="Horário *">
+                <input
+                  name="time"
+                  type="time"
+                  value={form.time}
+                  onChange={handleChange}
+                  required
+                />
+              </Field>
+            </div>
+          </Section>
 
-              <div className="space-y-2">
-                <Label htmlFor="court">Quadra (opcional)</Label>
-                <Input
-                  id="court"
-                  name="court"
-                  placeholder="Ex: Quadra 3"
-                  value={form.court}
+          {/* Section: local */}
+          <Section title="Local">
+            <Field label="Nome do local *">
+              <input
+                name="location"
+                placeholder="Ex: Arena Beach Club"
+                value={form.location}
+                onChange={handleChange}
+                required
+              />
+            </Field>
+            <Field label="Quadra (opcional)">
+              <input
+                name="court"
+                placeholder="Ex: Quadra 3"
+                value={form.court}
+                onChange={handleChange}
+              />
+            </Field>
+          </Section>
+
+          {/* Section: jogo */}
+          <Section title="Configuração do jogo">
+            <div className="grid grid-cols-3 gap-6">
+              <Field label="Duração (h) *">
+                <input
+                  name="duration_hours"
+                  type="number"
+                  min="0.5"
+                  max="8"
+                  step="0.5"
+                  value={form.duration_hours}
+                  onChange={handleChange}
+                  required
+                />
+              </Field>
+              <Field label="Máx. jogadores *">
+                <input
+                  name="max_players"
+                  type="number"
+                  min="2"
+                  max="100"
+                  value={form.max_players}
+                  onChange={handleChange}
+                  required
+                />
+              </Field>
+              <Field label="Total (R$)">
+                <input
+                  name="price_total"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={form.price_total}
                   onChange={handleChange}
                 />
-              </div>
+              </Field>
+            </div>
+          </Section>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="duration_hours">Duração (h) *</Label>
-                  <Input
-                    id="duration_hours"
-                    name="duration_hours"
-                    type="number"
-                    min="0.5"
-                    max="8"
-                    step="0.5"
-                    value={form.duration_hours}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_players">Limite *</Label>
-                  <Input
-                    id="max_players"
-                    name="max_players"
-                    type="number"
-                    min="2"
-                    max="100"
-                    value={form.max_players}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="price_total">Valor total (R$)</Label>
-                  <Input
-                    id="price_total"
-                    name="price_total"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0,00"
-                    value={form.price_total}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
+          {/* Section: pagamento */}
+          <Section title="Pagamento">
+            <Field label="Chave PIX">
+              <input
+                name="pix_key"
+                placeholder="CPF, e-mail, telefone ou chave aleatória"
+                value={form.pix_key}
+                onChange={handleChange}
+              />
+            </Field>
+          </Section>
 
-              <div className="space-y-2">
-                <Label htmlFor="pix_key">Chave PIX</Label>
-                <Input
-                  id="pix_key"
-                  name="pix_key"
-                  placeholder="CPF, e-mail, telefone ou chave aleatória"
-                  value={form.pix_key}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Criando..." : "Criar vôlei"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 rounded-xl font-semibold text-base transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+            style={{
+              background: "var(--color-brand)",
+              color: "var(--color-lime)",
+              fontFamily: "var(--font-syne)",
+              letterSpacing: "0.03em",
+            }}
+          >
+            {loading ? "Criando..." : "CRIAR VÔLEI"}
+          </button>
+        </form>
       </main>
     </div>
   );
 }
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <h2
+          className="text-xs font-semibold tracking-widest uppercase"
+          style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+        >
+          {title}
+        </h2>
+        <div className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label
+        className="block text-xs font-medium tracking-widest uppercase"
+        style={{ fontFamily: "var(--font-syne)", color: "oklch(0.50 0.03 150)" }}
+      >
+        {label}
+      </label>
+      <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+import React from "react";

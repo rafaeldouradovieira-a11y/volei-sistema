@@ -3,10 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, MapPin, Clock, Users, Calendar } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, MapPin, Clock } from "lucide-react";
 import { GameActions } from "@/components/game/game-actions";
 import type { GameWithDetails } from "@/lib/supabase/types";
 
@@ -16,23 +13,20 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+const STATUS_CONFIG = {
+  active:    { label: "Ativo",      bg: "#c4ff45", color: "#0c2b1a" },
+  closed:    { label: "Encerrado",  bg: "#e5e5e5", color: "#525252" },
+  cancelled: { label: "Cancelado",  bg: "#fecaca", color: "#7f1d1d" },
+};
+
 export default async function GamePage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data } = await supabase
     .from("games")
-    .select(
-      `
-      *,
-      profiles(*),
-      game_participants(*, profiles(*)),
-      waiting_list(*, profiles(*))
-    `
-    )
+    .select(`*, profiles(*), game_participants(*, profiles(*)), waiting_list(*, profiles(*))`)
     .eq("id", id)
     .single();
 
@@ -48,140 +42,215 @@ export default async function GamePage({ params }: Props) {
       ? (game.price_total / participantCount).toFixed(2)
       : null;
 
-  const dateFormatted = format(parseISO(game.date), "EEEE, dd 'de' MMMM 'de' yyyy", {
-    locale: ptBR,
-  });
+  const fillPct = Math.min((participantCount / game.max_players) * 100, 100);
 
-  const statusLabel = {
-    active: "Ativo",
-    closed: "Encerrado",
-    cancelled: "Cancelado",
-  }[game.status];
+  const dayStr = format(parseISO(game.date), "EEEE", { locale: ptBR });
+  const dateStr = format(parseISO(game.date), "dd 'de' MMMM", { locale: ptBR });
 
-  const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    active: "default",
-    closed: "secondary",
-    cancelled: "destructive",
-  };
+  const status = STATUS_CONFIG[game.status];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
+    <div className="min-h-screen" style={{ background: "var(--color-cream)" }}>
+      {/* Hero header */}
+      <div style={{ background: "var(--color-brand)" }}>
+        {/* Nav bar */}
+        <div className="max-w-2xl mx-auto px-4 pt-4 flex items-center gap-3">
           <Link href="/">
-            <Button variant="ghost" size="sm">
+            <button
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                color: "rgba(255,255,255,0.8)",
+              }}
+            >
               <ArrowLeft size={16} />
-            </Button>
+            </button>
           </Link>
-          <h1 className="font-semibold truncate">
-            {game.title || `Vôlei em ${game.location}`}
-          </h1>
+          <span
+            className="text-xs font-semibold tracking-widest uppercase"
+            style={{ color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-syne)" }}
+          >
+            Detalhe do jogo
+          </span>
         </div>
-      </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {/* Info card */}
-        <div className="bg-white rounded-lg border p-5 space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-xl font-bold">
-                {game.title || `Vôlei em ${game.location}`}
-              </h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Organizado por {game.profiles.name}
-              </p>
-            </div>
-            <Badge variant={statusVariant[game.status]}>{statusLabel}</Badge>
+        {/* Game info */}
+        <div className="max-w-2xl mx-auto px-4 pt-5 pb-8">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <h1
+              className="text-2xl font-extrabold leading-tight tracking-tight"
+              style={{ fontFamily: "var(--font-syne)", color: "white" }}
+            >
+              {game.title || game.location.toUpperCase()}
+            </h1>
+            <span
+              className="shrink-0 text-xs font-bold px-3 py-1 rounded-full mt-1"
+              style={{
+                background: status.bg,
+                color: status.color,
+                fontFamily: "var(--font-syne)",
+              }}
+            >
+              {status.label}
+            </span>
           </div>
 
-          <Separator />
+          {/* Meta row */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-6 text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>
+            <span className="capitalize">{dayStr}, {dateStr}</span>
+            <span className="flex items-center gap-1">
+              <Clock size={13} />
+              {game.time.slice(0, 5)} · {game.duration_hours}h
+            </span>
+            <span className="flex items-center gap-1">
+              <MapPin size={13} />
+              {game.location}
+              {game.court ? ` · ${game.court}` : ""}
+            </span>
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>
+              por {game.profiles.name.split(" ")[0]}
+            </span>
+          </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="flex items-center gap-2 text-gray-700">
-              <Calendar size={15} className="text-gray-400 shrink-0" />
-              <span className="capitalize">{dateFormatted}</span>
+          {/* Scoreboard row */}
+          <div
+            className="rounded-2xl p-4 flex items-center justify-between gap-4"
+            style={{ background: "rgba(255,255,255,0.07)" }}
+          >
+            {/* Player count */}
+            <div>
+              <div
+                className="text-4xl font-extrabold leading-none"
+                style={{
+                  fontFamily: "var(--font-syne)",
+                  color: "var(--color-lime)",
+                }}
+              >
+                {participantCount}
+                <span className="text-2xl opacity-40">/{game.max_players}</span>
+              </div>
+              <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+                jogadores
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <Clock size={15} className="text-gray-400 shrink-0" />
-              <span>
-                {game.time.slice(0, 5)} · {game.duration_hours}h
-              </span>
+
+            {/* Progress bar */}
+            <div className="flex-1 space-y-1.5">
+              <div
+                className="h-2 rounded-full overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.12)" }}
+              >
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${fillPct}%`,
+                    background:
+                      fillPct >= 100
+                        ? "#f87171"
+                        : "var(--color-lime)",
+                  }}
+                />
+              </div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                {game.max_players - participantCount > 0
+                  ? `${game.max_players - participantCount} vagas restantes`
+                  : "Lotado"}
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-700 col-span-2">
-              <MapPin size={15} className="text-gray-400 shrink-0" />
-              <span>
-                {game.location}
-                {game.court ? ` · ${game.court}` : ""}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <Users size={15} className="text-gray-400 shrink-0" />
-              <span>
-                {participantCount}/{game.max_players} pessoas
-              </span>
-            </div>
+
+            {/* Price */}
             {pricePerPerson && (
-              <div className="flex items-center gap-2 text-green-700 font-semibold">
-                <span className="text-gray-400 text-base">R$</span>
-                <span>{pricePerPerson}/pessoa</span>
+              <div className="text-right shrink-0">
+                <div
+                  className="text-2xl font-extrabold leading-none"
+                  style={{ fontFamily: "var(--font-syne)", color: "white" }}
+                >
+                  R${pricePerPerson}
+                </div>
+                <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  por pessoa
+                </div>
               </div>
             )}
           </div>
         </div>
+      </div>
 
+      {/* Content */}
+      <main className="max-w-2xl mx-auto px-4 py-5 space-y-4">
         {/* Actions */}
-        <div className="bg-white rounded-lg border p-4">
+        <div className="bg-card rounded-2xl p-4 shadow-sm">
           <GameActions game={game} currentUserId={user?.id ?? null} />
         </div>
 
         {/* Participant list */}
-        <div className="bg-white rounded-lg border p-5">
+        <div className="bg-card rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">
-              Lista ({participantCount}/{game.max_players})
+            <h3
+              className="text-sm font-bold tracking-wide uppercase"
+              style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+            >
+              Lista de jogadores
             </h3>
             {game.price_total && participantCount > 0 && (
-              <span className="text-sm text-gray-500">
-                {confirmedCount}/{participantCount} pagos
+              <span className="text-xs text-muted-foreground">
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--color-brand)" }}
+                >
+                  {confirmedCount}
+                </span>
+                /{participantCount} pagos
               </span>
             )}
           </div>
 
           {participantCount === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">
+            <p className="text-sm text-muted-foreground text-center py-6">
               Nenhum participante ainda
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-0.5">
               {game.game_participants.map((p, i) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between py-1.5"
+                  className="flex items-center gap-3 py-2.5 rounded-lg px-2 -mx-2 transition-colors hover:bg-muted/50"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 w-5 text-right">
-                      {i + 1}.
+                  <span
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{
+                      background: "var(--color-brand)",
+                      color: "var(--color-lime)",
+                      fontFamily: "var(--font-syne)",
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-sm">{p.profiles.name}</span>
+                    <span className="text-muted-foreground text-xs ml-2">
+                      {p.profiles.phone}
                     </span>
-                    <div>
-                      <span className="font-medium text-sm">{p.profiles.name}</span>
-                      <span className="text-gray-400 text-xs ml-2">
-                        {p.profiles.phone}
-                      </span>
-                    </div>
                   </div>
                   {game.price_total && (
-                    <Badge
-                      variant={
-                        p.payment_status === "confirmed" ? "default" : "outline"
-                      }
-                      className={
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
+                      style={
                         p.payment_status === "confirmed"
-                          ? "bg-green-500 hover:bg-green-600"
-                          : "text-yellow-600 border-yellow-300"
+                          ? {
+                              background: "#c4ff45",
+                              color: "#0c2b1a",
+                              fontFamily: "var(--font-syne)",
+                            }
+                          : {
+                              background: "#fef3c7",
+                              color: "#92400e",
+                              fontFamily: "var(--font-syne)",
+                            }
                       }
                     >
                       {p.payment_status === "confirmed" ? "Pago" : "Pendente"}
-                    </Badge>
+                    </span>
                   )}
                 </div>
               ))}
@@ -191,21 +260,39 @@ export default async function GamePage({ params }: Props) {
           {/* Waiting list */}
           {game.waiting_list.length > 0 && (
             <>
-              <Separator className="my-4" />
-              <h4 className="text-sm font-medium text-gray-600 mb-3">
-                Lista de espera ({game.waiting_list.length})
-              </h4>
-              <div className="space-y-2">
+              <div
+                className="my-4 flex items-center gap-2"
+              >
+                <div className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
+                <span
+                  className="text-xs font-semibold uppercase tracking-widest px-2"
+                  style={{ fontFamily: "var(--font-syne)", color: "oklch(0.7 0.08 55)" }}
+                >
+                  Lista de espera
+                </span>
+                <div className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
+              </div>
+              <div className="space-y-0.5">
                 {game.waiting_list.map((w, i) => (
-                  <div key={w.id} className="flex items-center gap-3 py-1">
-                    <span className="text-xs text-gray-400 w-5 text-right">
-                      {i + 1}.
+                  <div
+                    key={w.id}
+                    className="flex items-center gap-3 py-2.5 rounded-lg px-2 -mx-2"
+                  >
+                    <span
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 opacity-50"
+                      style={{
+                        border: "1.5px dashed oklch(0.7 0.08 55)",
+                        color: "oklch(0.7 0.08 55)",
+                        fontFamily: "var(--font-syne)",
+                      }}
+                    >
+                      {i + 1}
                     </span>
-                    <div>
-                      <span className="text-sm text-gray-600">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-muted-foreground">
                         {w.profiles.name}
                       </span>
-                      <span className="text-gray-400 text-xs ml-2">
+                      <span className="text-muted-foreground/50 text-xs ml-2">
                         {w.profiles.phone}
                       </span>
                     </div>

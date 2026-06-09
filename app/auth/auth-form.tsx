@@ -5,93 +5,101 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
-type Step = "email" | "otp" | "profile";
+type Mode = "login" | "register";
+type Step = "credentials" | "profile";
 
 export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
 
-  const [step, setStep] = useState<Step>("email");
+  const [mode, setMode] = useState<Mode>("login");
+  const [step, setStep] = useState<Step>("credentials");
   const [loading, setLoading] = useState(false);
+
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  async function handleSendOtp(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     const supabase = createClient();
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      toast.success("Código enviado para seu e-mail!");
-      setStep("otp");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erro ao enviar código");
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    const supabase = createClient();
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: "email",
-      });
-      if (error) throw error;
       const userId = data.user?.id;
-      if (!userId) throw new Error("Usuário não encontrado");
+      if (!userId) throw new Error("Erro ao autenticar");
+
       const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", userId)
-        .single();
+        .from("profiles").select("id").eq("id", userId).single();
+
       if (profile) {
         router.push(redirectTo);
+        router.refresh();
       } else {
         setStep("profile");
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Código inválido");
+      const msg = err instanceof Error ? err.message : "Erro ao entrar";
+      if (msg.includes("Invalid login credentials")) {
+        toast.error("E-mail ou senha incorretos");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleCreateProfile(e: React.FormEvent) {
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      if (!data.user) throw new Error("Erro ao criar conta");
+      setStep("profile");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao criar conta";
+      if (msg.includes("already registered")) {
+        toast.error("Este e-mail já está cadastrado. Faça login.");
+        setMode("login");
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleProfile(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     const supabase = createClient();
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sessão expirada");
+      if (!user) throw new Error("Sessão expirada, faça login novamente");
+
       const { error } = await supabase.from("profiles").insert({
         id: user.id,
         name: name.trim(),
         phone: phone.trim(),
       });
       if (error) throw error;
+
       toast.success("Cadastro concluído!");
       router.push(redirectTo);
+      router.refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Erro ao salvar perfil");
     } finally {
       setLoading(false);
     }
   }
-
-  const steps = ["email", "otp", "profile"] as const;
-  const stepIndex = steps.indexOf(step);
 
   return (
     <div className="w-full max-w-sm mx-auto">
@@ -105,110 +113,80 @@ export function AuthForm() {
         </div>
         <h1
           className="text-3xl font-extrabold tracking-tight"
-          style={{
-            fontFamily: "var(--font-syne)",
-            color: "var(--color-brand)",
-          }}
+          style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
         >
           VÔLEI<span style={{ color: "oklch(0.5 0.12 127)" }}>.SYSTEM</span>
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {step === "email" && "Entre com seu e-mail"}
-          {step === "otp" && `Código enviado para ${email}`}
-          {step === "profile" && "Quase lá! Complete seu perfil"}
+          {step === "profile"
+            ? "Quase lá! Complete seu perfil"
+            : mode === "login"
+            ? "Entre na sua conta"
+            : "Crie sua conta"}
         </p>
       </div>
 
-      {/* Step dots */}
-      <div className="flex justify-center gap-1.5 mb-8">
-        {steps.map((s, i) => (
+      {step === "credentials" && (
+        <>
+          {/* Mode toggle */}
           <div
-            key={s}
-            className="h-1.5 rounded-full transition-all duration-300"
-            style={{
-              width: i === stepIndex ? "24px" : "8px",
-              background: i <= stepIndex ? "var(--color-brand)" : "var(--color-border)",
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Forms */}
-      {step === "email" && (
-        <form onSubmit={handleSendOtp} className="space-y-4">
-          <div>
-            <label
-              className="block text-xs font-semibold tracking-widest uppercase mb-2"
-              style={{
-                fontFamily: "var(--font-syne)",
-                color: "var(--color-brand)",
-              }}
-            >
-              E-mail
-            </label>
-            <input
-              type="email"
-              placeholder="seu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-              className="w-full px-0 py-3 bg-transparent text-base outline-none transition-colors placeholder:text-muted-foreground/50"
-              style={{
-                borderBottom: "2px solid var(--color-brand)",
-                color: "var(--color-brand)",
-              }}
-            />
-          </div>
-          <SubmitButton loading={loading} label="Continuar" />
-        </form>
-      )}
-
-      {step === "otp" && (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div>
-            <label
-              className="block text-xs font-semibold tracking-widest uppercase mb-2"
-              style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
-            >
-              Código de 6 dígitos
-            </label>
-            <input
-              type="text"
-              placeholder="000000"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              maxLength={6}
-              required
-              autoFocus
-              className="w-full py-3 bg-transparent text-4xl font-extrabold tracking-[0.3em] outline-none text-center"
-              style={{
-                borderBottom: "2px solid var(--color-brand)",
-                color: "var(--color-brand)",
-                fontFamily: "var(--font-syne)",
-              }}
-            />
-          </div>
-          <SubmitButton loading={loading} label="Verificar" />
-          <button
-            type="button"
-            className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setStep("email")}
+            className="flex rounded-xl p-1 mb-8"
+            style={{ background: "oklch(0.91 0.01 85)" }}
           >
-            ← Usar outro e-mail
-          </button>
-        </form>
+            {(["login", "register"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  fontFamily: "var(--font-syne)",
+                  background: mode === m ? "var(--color-brand)" : "transparent",
+                  color: mode === m ? "var(--color-lime)" : "oklch(0.50 0.03 150)",
+                }}
+              >
+                {m === "login" ? "Entrar" : "Criar conta"}
+              </button>
+            ))}
+          </div>
+
+          <form
+            onSubmit={mode === "login" ? handleLogin : handleRegister}
+            className="space-y-6"
+          >
+            <FormField label="E-mail">
+              <input
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </FormField>
+
+            <FormField label="Senha">
+              <input
+                type="password"
+                placeholder={mode === "register" ? "Mínimo 6 caracteres" : "••••••••"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </FormField>
+
+            <SubmitButton
+              loading={loading}
+              label={mode === "login" ? "Entrar" : "Criar conta"}
+            />
+          </form>
+        </>
       )}
 
       {step === "profile" && (
-        <form onSubmit={handleCreateProfile} className="space-y-6">
-          <div>
-            <label
-              className="block text-xs font-semibold tracking-widest uppercase mb-2"
-              style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
-            >
-              Nome completo
-            </label>
+        <form onSubmit={handleProfile} className="space-y-6">
+          <FormField label="Nome completo">
             <input
               type="text"
               placeholder="João Silva"
@@ -216,36 +194,38 @@ export function AuthForm() {
               onChange={(e) => setName(e.target.value)}
               required
               autoFocus
-              className="w-full px-0 py-3 bg-transparent text-base outline-none placeholder:text-muted-foreground/50"
-              style={{
-                borderBottom: "2px solid var(--color-brand)",
-                color: "var(--color-brand)",
-              }}
             />
-          </div>
-          <div>
-            <label
-              className="block text-xs font-semibold tracking-widest uppercase mb-2"
-              style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
-            >
-              WhatsApp
-            </label>
+          </FormField>
+
+          <FormField label="WhatsApp">
             <input
               type="tel"
               placeholder="(11) 99999-9999"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="w-full px-0 py-3 bg-transparent text-base outline-none placeholder:text-muted-foreground/50"
-              style={{
-                borderBottom: "2px solid var(--color-brand)",
-                color: "var(--color-brand)",
-              }}
             />
-          </div>
+          </FormField>
+
           <SubmitButton loading={loading} label="Entrar no sistema" />
         </form>
       )}
+    </div>
+  );
+}
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label
+        className="block text-xs font-semibold tracking-widest uppercase"
+        style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+      >
+        {label}
+      </label>
+      <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -255,7 +235,7 @@ function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
     <button
       type="submit"
       disabled={loading}
-      className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 mt-6"
+      className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 mt-2"
       style={{
         background: "var(--color-brand)",
         color: "var(--color-lime)",

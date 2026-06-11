@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { format, parseISO } from "date-fns";
-import { isGameInProgress } from "@/lib/game-time";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, MapPin, Clock, Pencil } from "lucide-react";
 import { GameActions } from "@/components/game/game-actions";
@@ -87,8 +86,6 @@ export default async function GamePage({ params }: Props) {
   const isParticipant = user
     ? game.game_participants.some((p) => p.user_id === user.id)
     : false;
-
-  const gameInProgress = isGameInProgress(game.date, game.time, game.duration_hours);
 
   const allPlayers: ListItem[] = [
     ...game.game_participants.map((p) => ({
@@ -289,7 +286,6 @@ export default async function GamePage({ params }: Props) {
         <MatchSection
           gameId={id}
           isParticipant={isParticipant}
-          gameInProgress={gameInProgress}
           liveMatch={liveMatch}
           todayMatches={todayFinished}
           allPlayers={selectablePlayers}

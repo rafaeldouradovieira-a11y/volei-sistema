@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { canJoin, canLeave, isWithin48Hours, isGameInProgress } from "@/lib/game-time";
+import { canJoin, canLeave, isWithin48Hours } from "@/lib/game-time";
 import type { MatchPlayer } from "@/lib/supabase/types";
 
 // Promotes oldest waiting guests to active when within 48h and spots are available
@@ -345,16 +345,6 @@ export async function startMatch(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Você precisa estar logado" };
-
-  const { data: gameInfo } = await supabase
-    .from("games")
-    .select("date, time, duration_hours")
-    .eq("id", gameId)
-    .single();
-
-  if (!gameInfo) return { error: "Jogo não encontrado" };
-  if (!isGameInProgress(gameInfo.date, gameInfo.time, gameInfo.duration_hours))
-    return { error: "Partidas só podem ser iniciadas durante o horário do vôlei" };
 
   const { data: existing } = await supabase
     .from("matches")

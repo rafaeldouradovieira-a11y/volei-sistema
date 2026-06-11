@@ -20,7 +20,6 @@ export type MatchWithStarter = Match & { starterName: string | null };
 interface Props {
   gameId: string;
   isParticipant: boolean;
-  gameInProgress: boolean;
   liveMatch: MatchWithStarter | null;
   todayMatches: MatchWithStarter[];
   allPlayers: SelectablePlayer[];
@@ -29,7 +28,7 @@ interface Props {
 const T1_BG = "#1d4ed8";
 const T2_BG = "#dc2626";
 
-export function MatchSection({ gameId, isParticipant, gameInProgress, liveMatch, todayMatches, allPlayers }: Props) {
+export function MatchSection({ gameId, isParticipant, liveMatch, todayMatches, allPlayers }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<"idle" | "team1" | "team2">("idle");
   const [format, setFormat] = useState<2 | 3 | 4>(4);
@@ -123,24 +122,18 @@ export function MatchSection({ gameId, isParticipant, gameInProgress, liveMatch,
 
         {/* Start button */}
         {!liveMatch && step === "idle" && (
-          gameInProgress ? (
-            isParticipant ? (
-              <button
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-85 active:scale-[0.98]"
-                style={{ background: "var(--color-brand)", color: "var(--color-lime)", fontFamily: "var(--font-syne)" }}
-                onClick={() => setStep("team1")}
-              >
-                <Play size={15} />
-                Nova partida
-              </button>
-            ) : (
-              <p className="text-xs text-center text-muted-foreground py-2">
-                Apenas participantes podem iniciar uma partida
-              </p>
-            )
+          isParticipant ? (
+            <button
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-85 active:scale-[0.98]"
+              style={{ background: "var(--color-brand)", color: "var(--color-lime)", fontFamily: "var(--font-syne)" }}
+              onClick={() => setStep("team1")}
+            >
+              <Play size={15} />
+              Nova partida
+            </button>
           ) : (
             <p className="text-xs text-center text-muted-foreground py-2">
-              Partidas disponíveis somente durante o horário do vôlei
+              Apenas participantes podem iniciar uma partida
             </p>
           )
         )}

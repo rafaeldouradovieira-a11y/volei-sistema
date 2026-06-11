@@ -377,6 +377,58 @@ export async function startMatch(
   return { success: "Partida iniciada!", matchId: match.id };
 }
 
+export async function updateGame(
+  gameId: string,
+  formData: {
+    title: string;
+    date: string;
+    time: string;
+    location: string;
+    court: string;
+    duration_hours: number;
+    max_players: number;
+    price_total: number | null;
+    pix_key: string | null;
+    allow_late_checkin: boolean;
+    allow_early_leave: boolean;
+  }
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  const { data: game } = await supabase
+    .from("games")
+    .select("organizer_id")
+    .eq("id", gameId)
+    .single();
+
+  if (!game || game.organizer_id !== user.id)
+    return { error: "Apenas o organizador pode editar o jogo" };
+
+  const { error } = await supabase
+    .from("games")
+    .update({
+      title: formData.title || null,
+      date: formData.date,
+      time: formData.time,
+      location: formData.location,
+      court: formData.court || null,
+      duration_hours: formData.duration_hours,
+      max_players: formData.max_players,
+      price_total: formData.price_total,
+      pix_key: formData.pix_key,
+      allow_late_checkin: formData.allow_late_checkin,
+      allow_early_leave: formData.allow_early_leave,
+    })
+    .eq("id", gameId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/games/${gameId}`);
+  revalidatePath("/");
+  return { success: "Jogo atualizado!" };
+}
+
 export async function cancelGame(gameId: string) {
   const supabase = await createClient();
   const {

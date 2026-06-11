@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { format, parseISO } from "date-fns";
 import { isGameInProgress } from "@/lib/game-time";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, MapPin, Clock } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Pencil } from "lucide-react";
 import { GameActions } from "@/components/game/game-actions";
 import { MatchSection } from "@/components/game/match-section";
 import type { MatchWithStarter } from "@/components/game/match-section";
@@ -164,6 +164,16 @@ export default async function GamePage({ params }: Props) {
           >
             Detalhe do jogo
           </span>
+          {user?.id === game.organizer_id && game.status === "active" && (
+            <Link href={`/games/${id}/edit`} className="ml-auto">
+              <button
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
+                style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.8)" }}
+              >
+                <Pencil size={15} />
+              </button>
+            </Link>
+          )}
         </div>
 
         {/* Game info */}

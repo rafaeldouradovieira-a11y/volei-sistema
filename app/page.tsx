@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/game/header";
 import { GameCard } from "@/components/game/game-card";
@@ -14,8 +15,19 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
 
   const { data: profile } = user
-    ? await supabase.from("profiles").select("*").eq("id", user.id).single()
+    ? await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
     : { data: null };
+
+  let isAdmin = false;
+  if (user) {
+    const admin = createAdminClient();
+    const { data: ap } = await admin
+      .from("authorized_phones")
+      .select("is_admin")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    isAdmin = ap?.is_admin ?? false;
+  }
 
   const { data: games } = await supabase
     .from("games")
@@ -23,7 +35,8 @@ export default async function HomePage() {
       `*,
       profiles(*),
       game_participants(*, profiles(*)),
-      waiting_list(*, profiles(*))`
+      waiting_list(*, profiles(*)),
+      game_guests(id)`
     )
     .order("date", { ascending: false })
     .order("time", { ascending: false });
@@ -39,7 +52,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header profile={profile} />
+      <Header profile={profile} isAdmin={isAdmin} />
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 pb-10">
         {/* Page hero */}
@@ -82,7 +95,7 @@ export default async function HomePage() {
         <Tabs defaultValue="active">
           <TabsList
             className="w-full mb-5 p-1 rounded-xl h-auto gap-1"
-            style={{ background: "oklch(0.91 0.01 85)" }}
+            style={{ background: "#1a1a1a" }}
           >
             <TabsTrigger
               value="active"

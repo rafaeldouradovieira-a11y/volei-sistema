@@ -10,16 +10,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, CheckCircle, Clock, UserPlus, LogOut, AlertCircle } from "lucide-react";
+import { Copy, CheckCircle, Clock, UserPlus, LogOut, AlertCircle, UserRoundPlus, X } from "lucide-react";
 import {
   joinGame,
   leaveGame,
   leaveWaitingList,
   confirmPayment,
   confirmParticipantPayment,
+  addGuest,
+  removeGuest,
+  confirmGuestPayment,
   closeGame,
   cancelGame,
+  saveProof,
 } from "@/app/games/[id]/actions";
+import { createClient } from "@/lib/supabase/client";
 import type { GameWithDetails } from "@/lib/supabase/types";
 import { canJoin, canLeave, getGameTimeStatus } from "@/lib/game-time";
 
@@ -36,7 +41,9 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
   const participant = game.game_participants.find((p) => p.user_id === currentUserId);
   const inWaitingList = game.waiting_list.find((w) => w.user_id === currentUserId);
   const timeStatus = getGameTimeStatus(game.date, game.time);
-  const gameIsFull = game.game_participants.length >= game.max_players;
+  const totalOccupied = game.game_participants.length + game.game_guests.length;
+  const gameIsFull = totalOccupied >= game.max_players;
+  const myGuests = game.game_guests.filter((g) => g.invited_by === currentUserId);
 
   async function handle(
     action: () => Promise<{ error?: string; success?: string }>,
@@ -97,6 +104,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
         <PaymentSection
           game={game}
           paymentStatus={participant.payment_status}
+          proofUrl={participant.proof_url ?? null}
           loading={loading}
           onConfirm={() => handle(() => confirmPayment(game.id), "pay")}
         />
@@ -126,6 +134,48 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
             />
           )}
         </>
+      )}
+
+      {/* Adicionar convidado */}
+      {participant && game.status === "active" && canJoin(game.date, game.time) && !gameIsFull && (
+        <AddGuestButton
+          gameId={game.id}
+          loading={loading}
+          onAdd={(name) => handle(() => addGuest(game.id, name), "add-guest")}
+        />
+      )}
+
+      {/* Meus convidados */}
+      {myGuests.length > 0 && game.status === "active" && (
+        <div className="space-y-1.5">
+          <p
+            className="text-xs font-semibold uppercase tracking-widest px-1"
+            style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)", opacity: 0.5 }}
+          >
+            Meus convidados
+          </p>
+          {myGuests.map((g) => (
+            <div
+              key={g.id}
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm"
+              style={{ background: "rgba(255,255,255,0.06)" }}
+            >
+              <span className="font-medium" style={{ color: "var(--color-brand)" }}>
+                {g.name}
+              </span>
+              {canLeave(game.date, game.time) && (
+                <button
+                  disabled={loading === `rm-guest-${g.id}`}
+                  onClick={() => handle(() => removeGuest(g.id, game.id), `rm-guest-${g.id}`)}
+                  className="w-6 h-6 rounded-full flex items-center justify-center transition-colors hover:bg-red-100 disabled:opacity-50"
+                  style={{ color: "#be123c" }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Lista de espera */}
@@ -158,6 +208,9 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
           onConfirmPayment={(participantId) =>
             handle(() => confirmParticipantPayment(game.id, participantId), `pay-${participantId}`)
           }
+          onConfirmGuestPayment={(guestId) =>
+            handle(() => confirmGuestPayment(guestId, game.id), `gpay-${guestId}`)
+          }
         />
       )}
     </div>
@@ -183,12 +236,12 @@ function ActionBtn({
       color: "var(--color-lime)",
     },
     ghost: {
-      background: "oklch(0.93 0.01 85)",
-      color: "var(--color-brand)",
+      background: "rgba(255,255,255,0.06)",
+      color: "#f2f2f2",
     },
     "ghost-danger": {
-      background: "#fff1f2",
-      color: "#be123c",
+      background: "rgba(239,68,68,0.12)",
+      color: "#f87171",
     },
     outline: {
       background: "transparent",
@@ -222,9 +275,9 @@ function InfoBanner({
   text: string;
 }) {
   const colorMap = {
-    amber: { bg: "#fffbeb", border: "#fde68a", color: "#92400e" },
-    gray: { bg: "#f9fafb", border: "#e5e7eb", color: "#6b7280" },
-    green: { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534" },
+    amber: { bg: "rgba(251,191,36,0.1)", border: "rgba(251,191,36,0.3)", color: "#fbbf24" },
+    gray:  { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.1)", color: "#8e8e93" },
+    green: { bg: "rgba(52,211,153,0.1)", border: "rgba(52,211,153,0.3)", color: "#34d399" },
   };
   const c = colorMap[color];
 
@@ -242,16 +295,20 @@ function InfoBanner({
 function PaymentSection({
   game,
   paymentStatus,
+  proofUrl,
   loading,
   onConfirm,
 }: {
   game: GameWithDetails;
   paymentStatus: string;
+  proofUrl: string | null;
   loading: string | null;
   onConfirm: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const participantCount = game.game_participants.length;
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const participantCount = game.game_participants.length + game.game_guests.length;
   const pricePerPerson =
     game.price_total && participantCount > 0
       ? (game.price_total / participantCount).toFixed(2)
@@ -259,22 +316,52 @@ function PaymentSection({
 
   if (!game.pix_key && !pricePerPerson) return null;
 
+  async function handleUploadProof() {
+    if (!proofFile) return;
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const ext = proofFile.name.split(".").pop() ?? "jpg";
+      const path = `${game.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("proofs")
+        .upload(path, proofFile, { upsert: true });
+      if (upErr) { toast.error("Erro ao enviar comprovante"); return; }
+      const { data: { publicUrl } } = supabase.storage.from("proofs").getPublicUrl(path);
+      const res = await saveProof(game.id, publicUrl);
+      if (res.error) toast.error(res.error);
+      else toast.success("Comprovante enviado!");
+      setProofFile(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (paymentStatus === "confirmed") {
     return (
-      <InfoBanner
-        icon={<CheckCircle size={14} />}
-        color="green"
-        text="Pagamento confirmado"
-      />
+      <div className="space-y-2">
+        <InfoBanner
+          icon={<CheckCircle size={14} />}
+          color="green"
+          text="Pagamento confirmado"
+        />
+        {proofUrl && (
+          <a
+            href={proofUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-xs text-center underline text-muted-foreground"
+          >
+            Ver comprovante enviado
+          </a>
+        )}
+      </div>
     );
   }
 
   return (
     <>
-      <ActionBtn
-        variant="outline"
-        onClick={() => setOpen(true)}
-      >
+      <ActionBtn variant="outline" onClick={() => setOpen(true)}>
         Pagar vôlei
         {pricePerPerson && (
           <span
@@ -312,7 +399,7 @@ function PaymentSection({
           {game.pix_key && (
             <div
               className="rounded-xl p-4 space-y-2"
-              style={{ background: "oklch(0.93 0.01 85)" }}
+              style={{ background: "rgba(255,255,255,0.06)" }}
             >
               <div
                 className="text-xs font-semibold uppercase tracking-widest"
@@ -321,10 +408,7 @@ function PaymentSection({
                 Chave PIX
               </div>
               <div className="flex items-center gap-2">
-                <code
-                  className="flex-1 text-sm break-all"
-                  style={{ color: "var(--color-brand)" }}
-                >
+                <code className="flex-1 text-sm break-all" style={{ color: "var(--color-brand)" }}>
                   {game.pix_key}
                 </code>
                 <button
@@ -341,6 +425,54 @@ function PaymentSection({
             </div>
           )}
 
+          {/* Proof upload */}
+          <div className="space-y-2">
+            <label
+              className="block text-xs font-semibold uppercase tracking-widest"
+              style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+            >
+              Comprovante (opcional)
+            </label>
+            <div className="flex gap-2">
+              <label
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors hover:opacity-80"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  color: "var(--color-brand)",
+                  border: proofFile ? "1.5px solid var(--color-brand)" : "1.5px dashed #ccc",
+                  fontFamily: "var(--font-syne)",
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                />
+                {proofFile ? proofFile.name.slice(0, 20) : "Anexar imagem"}
+              </label>
+              {proofFile && (
+                <button
+                  disabled={uploading}
+                  onClick={handleUploadProof}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
+                  style={{
+                    background: "var(--color-brand)",
+                    color: "var(--color-lime)",
+                    fontFamily: "var(--font-syne)",
+                  }}
+                >
+                  {uploading ? "..." : "Enviar"}
+                </button>
+              )}
+            </div>
+            {proofUrl && !proofFile && (
+              <a href={proofUrl} target="_blank" rel="noreferrer" className="text-xs underline text-muted-foreground">
+                Comprovante já enviado — ver
+              </a>
+            )}
+          </div>
+
           <ActionBtn
             variant="primary"
             disabled={loading === "pay"}
@@ -355,24 +487,94 @@ function PaymentSection({
   );
 }
 
+function AddGuestButton({
+  gameId,
+  loading,
+  onAdd,
+}: {
+  gameId: string;
+  loading: string | null;
+  onAdd: (name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onAdd(name.trim());
+    setName("");
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <ActionBtn variant="outline" onClick={() => setOpen(true)}>
+        <UserRoundPlus size={15} />
+        Adicionar convidado
+      </ActionBtn>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar convidado</DialogTitle>
+            <DialogDescription>
+              O convidado aparece na lista vinculado ao seu nome.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-1">
+            <div className="space-y-1.5">
+              <label
+                className="block text-xs font-semibold tracking-widest uppercase"
+                style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+              >
+                Nome do convidado
+              </label>
+              <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
+                <input
+                  type="text"
+                  placeholder="Nome completo"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+            <ActionBtn variant="primary" disabled={loading === "add-guest"}>
+              <UserRoundPlus size={15} />
+              {loading === "add-guest" ? "Adicionando..." : "Adicionar"}
+            </ActionBtn>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function OrganizerActions({
   game,
   loading,
   onClose,
   onCancel,
   onConfirmPayment,
+  onConfirmGuestPayment,
 }: {
   game: GameWithDetails;
   loading: string | null;
   onClose: () => void;
   onCancel: () => void;
   onConfirmPayment: (participantId: string) => void;
+  onConfirmGuestPayment: (guestId: string) => void;
 }) {
   const [showClose, setShowClose] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
 
   const pendingPayments = game.game_participants.filter(
     (p) => p.payment_status === "pending"
+  );
+  const pendingGuestPayments = game.game_guests.filter(
+    (g) => g.payment_status === "pending"
   );
 
   return (
@@ -388,17 +590,55 @@ function OrganizerActions({
           Organizador
         </p>
 
-        {/* Pending payments */}
-        {pendingPayments.length > 0 && (
+        {/* Pending payments — participants */}
+        {(pendingPayments.length > 0 || pendingGuestPayments.length > 0) && (
           <div className="space-y-1.5">
             {pendingPayments.map((p) => (
               <div
                 key={p.id}
+                className="rounded-xl px-3 py-2.5 space-y-2"
+                style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)" }}
+              >
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: "#92400e" }}>
+                    {(p.profiles.name ?? "Alguém").split(" ")[0]} · pendente
+                  </span>
+                  <button
+                    className="text-xs font-bold flex items-center gap-1 px-2 py-1 rounded-lg transition-colors"
+                    style={{
+                      background: "var(--color-brand)",
+                      color: "var(--color-lime)",
+                      fontFamily: "var(--font-syne)",
+                    }}
+                    disabled={loading === `pay-${p.id}`}
+                    onClick={() => onConfirmPayment(p.id)}
+                  >
+                    <CheckCircle size={11} />
+                    {loading === `pay-${p.id}` ? "..." : "Confirmar"}
+                  </button>
+                </div>
+                {p.proof_url && (
+                  <a
+                    href={p.proof_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-xs underline"
+                    style={{ color: "#92400e" }}
+                  >
+                    Ver comprovante
+                  </a>
+                )}
+              </div>
+            ))}
+            {pendingGuestPayments.map((g) => (
+              <div
+                key={g.id}
                 className="flex items-center justify-between text-sm rounded-xl px-3 py-2.5"
-                style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+                style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)" }}
               >
                 <span style={{ color: "#92400e" }}>
-                  {p.profiles.name.split(" ")[0]} · pendente
+                  {g.name}
+                  <span className="opacity-60 ml-1 text-xs">(convidado) · pendente</span>
                 </span>
                 <button
                   className="text-xs font-bold flex items-center gap-1 px-2 py-1 rounded-lg transition-colors"
@@ -407,11 +647,11 @@ function OrganizerActions({
                     color: "var(--color-lime)",
                     fontFamily: "var(--font-syne)",
                   }}
-                  disabled={loading === `pay-${p.id}`}
-                  onClick={() => onConfirmPayment(p.id)}
+                  disabled={loading === `gpay-${g.id}`}
+                  onClick={() => onConfirmGuestPayment(g.id)}
                 >
                   <CheckCircle size={11} />
-                  {loading === `pay-${p.id}` ? "..." : "Confirmar"}
+                  {loading === `gpay-${g.id}` ? "..." : "Confirmar"}
                 </button>
               </div>
             ))}
@@ -428,7 +668,7 @@ function OrganizerActions({
           <button
             className="shrink-0 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-85"
             style={{
-              background: "#fff1f2",
+              background: "rgba(239,68,68,0.12)",
               color: "#be123c",
               fontFamily: "var(--font-syne)",
             }}

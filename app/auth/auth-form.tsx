@@ -1,105 +1,151 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { phoneLogin } from "./actions";
+import { formatPhone, normalizePhone } from "@/lib/phone";
 
-type Mode = "login" | "register";
-type Step = "credentials" | "profile";
+type Step = "phone" | "profile";
 
 export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
 
-  const [mode, setMode] = useState<Mode>("login");
-  const [step, setStep] = useState<Step>("credentials");
+  const [step, setStep] = useState<Step>("phone");
   const [loading, setLoading] = useState(false);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [unauthorized, setUnauthorized] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  const [name, setName] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+    setPhone(digits);
+    setUnauthorized(false);
+  }
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handlePhoneSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
-    const supabase = createClient();
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+    setUnauthorized(false);
 
-      const userId = data.user?.id;
-      if (!userId) throw new Error("Erro ao autenticar");
+    try {
+      const result = await phoneLogin(phone);
+
+      if (!result.ok) {
+        if (result.error === "unauthorized") {
+          setUnauthorized(true);
+          return;
+        }
+        if (result.error === "invalid_phone") {
+          toast.error("Telefone inválido. Digite DDD + número.");
+          return;
+        }
+        toast.error(result.error);
+        return;
+      }
+
+      const supabase = createClient();
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: result.tokenHash,
+        type: "magiclink",
+      });
+
+      if (verifyError) {
+        toast.error("Erro ao autenticar. Tente novamente.");
+        return;
+      }
+
+      // Check if profile already exists
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Sessão expirada. Tente novamente.");
+        return;
+      }
 
       const { data: profile } = await supabase
-        .from("profiles").select("id").eq("id", userId).single();
+        .from("profiles")
+        .select("id, name")
+        .eq("id", user.id)
+        .maybeSingle();
 
-      if (profile) {
+      if (profile?.name) {
         router.push(redirectTo);
         router.refresh();
       } else {
         setStep("profile");
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao entrar";
-      if (msg.includes("Invalid login credentials")) {
-        toast.error("E-mail ou senha incorretos");
-      } else {
-        toast.error(msg);
-      }
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
-    const supabase = createClient();
-    try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      if (!data.user) throw new Error("Erro ao criar conta");
-      setStep("profile");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao criar conta";
-      if (msg.includes("already registered")) {
-        toast.error("Este e-mail já está cadastrado. Faça login.");
-        setMode("login");
-      } else {
-        toast.error(msg);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  async function handleProfile(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
     const supabase = createClient();
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sessão expirada, faça login novamente");
+      if (!user) throw new Error("Sessão expirada. Faça login novamente.");
 
-      const { error } = await supabase.from("profiles").insert({
+      let avatar_url: string | null = null;
+
+      if (avatarFile) {
+        const ext = avatarFile.name.split(".").pop();
+        const path = `${user.id}/avatar.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(path, avatarFile, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(path);
+          avatar_url = urlData.publicUrl;
+        }
+      }
+
+      const { error } = await supabase.from("profiles").upsert({
         id: user.id,
         name: name.trim(),
-        phone: phone.trim(),
+        avatar_url,
       });
+
       if (error) throw error;
 
-      toast.success("Cadastro concluído!");
+      toast.success("Bem-vindo ao VÔLEI.SYSTEM!");
       router.push(redirectTo);
       router.refresh();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erro ao salvar perfil");
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar perfil.");
     } finally {
       setLoading(false);
     }
   }
+
+  const displayPhone = phone.length >= 10
+    ? formatPhone(normalizePhone(phone))
+    : phone.length > 0
+    ? `(${phone.slice(0, 2)}) ${phone.slice(2)}`
+    : "";
 
   return (
     <div className="w-full max-w-sm mx-auto">
@@ -115,78 +161,84 @@ export function AuthForm() {
           className="text-3xl font-extrabold tracking-tight"
           style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
         >
-          VÔLEI<span style={{ color: "oklch(0.5 0.12 127)" }}>.SYSTEM</span>
+          VÔLEI<span style={{ color: "rgba(239,68,68,0.5)" }}>.SYSTEM</span>
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {step === "profile"
-            ? "Quase lá! Complete seu perfil"
-            : mode === "login"
-            ? "Entre na sua conta"
-            : "Crie sua conta"}
+            ? "Primeiro acesso — complete seu perfil"
+            : "Entre com seu número de WhatsApp"}
         </p>
       </div>
 
-      {step === "credentials" && (
-        <>
-          {/* Mode toggle */}
-          <div
-            className="flex rounded-xl p-1 mb-8"
-            style={{ background: "oklch(0.91 0.01 85)" }}
-          >
-            {(["login", "register"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{
-                  fontFamily: "var(--font-syne)",
-                  background: mode === m ? "var(--color-brand)" : "transparent",
-                  color: mode === m ? "var(--color-lime)" : "oklch(0.50 0.03 150)",
-                }}
-              >
-                {m === "login" ? "Entrar" : "Criar conta"}
-              </button>
-            ))}
-          </div>
-
-          <form
-            onSubmit={mode === "login" ? handleLogin : handleRegister}
-            className="space-y-6"
-          >
-            <FormField label="E-mail">
-              <input
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
-            </FormField>
-
-            <FormField label="Senha">
-              <input
-                type="password"
-                placeholder={mode === "register" ? "Mínimo 6 caracteres" : "••••••••"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </FormField>
-
-            <SubmitButton
-              loading={loading}
-              label={mode === "login" ? "Entrar" : "Criar conta"}
+      {step === "phone" && (
+        <form onSubmit={handlePhoneSubmit} className="space-y-6">
+          <FormField label="WhatsApp">
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="(11) 99999-9999"
+              value={displayPhone}
+              onChange={handlePhoneChange}
+              required
+              autoFocus
             />
-          </form>
-        </>
+          </FormField>
+
+          {unauthorized && (
+            <div
+              className="rounded-xl p-4 text-sm"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                color: "#f87171",
+              }}
+            >
+              <p className="font-semibold mb-0.5">Usuário não encontrado.</p>
+              <p className="opacity-80">Um admin foi avisado sobre sua tentativa.</p>
+            </div>
+          )}
+
+          <SubmitButton loading={loading} label="Entrar" />
+        </form>
       )}
 
       {step === "profile" && (
-        <form onSubmit={handleProfile} className="space-y-6">
-          <FormField label="Nome completo">
+        <form onSubmit={handleProfileSubmit} className="space-y-6">
+          {/* Avatar picker */}
+          <div className="flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center transition-all hover:opacity-80 active:scale-95"
+              style={{
+                background: avatarPreview ? "transparent" : "#232323",
+                border: "3px dashed",
+                borderColor: avatarPreview ? "var(--color-brand)" : "#3a3a3c",
+              }}
+            >
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-3xl">📸</span>
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+            <p className="text-xs text-muted-foreground">
+              {avatarPreview ? "Toque para trocar" : "Adicionar foto (opcional)"}
+            </p>
+          </div>
+
+          <FormField label="Seu nome">
             <input
               type="text"
               placeholder="João Silva"
@@ -197,16 +249,6 @@ export function AuthForm() {
             />
           </FormField>
 
-          <FormField label="WhatsApp">
-            <input
-              type="tel"
-              placeholder="(11) 99999-9999"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </FormField>
-
           <SubmitButton loading={loading} label="Entrar no sistema" />
         </form>
       )}
@@ -214,23 +256,41 @@ export function AuthForm() {
   );
 }
 
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <label
         className="block text-xs font-semibold tracking-widest uppercase"
-        style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+        style={{
+          fontFamily: "var(--font-syne)",
+          color: "var(--color-brand)",
+        }}
       >
         {label}
       </label>
-      <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
+      <div
+        className="field-input"
+        style={{ borderBottom: "2px solid var(--color-brand)" }}
+      >
         {children}
       </div>
     </div>
   );
 }
 
-function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
+function SubmitButton({
+  loading,
+  label,
+}: {
+  loading: boolean;
+  label: string;
+}) {
   return (
     <button
       type="submit"

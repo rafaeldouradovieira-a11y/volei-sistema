@@ -9,14 +9,14 @@ interface GameCardProps {
 }
 
 const STATUS_CONFIG = {
-  active_open:   { label: "Aberto",    bg: "#c4ff45", color: "#0c2b1a" },
-  active_full:   { label: "Lotado",    bg: "#fbbf24", color: "#451a03" },
-  closed:        { label: "Encerrado", bg: "#e5e5e5", color: "#525252" },
-  cancelled:     { label: "Cancelado", bg: "#fecaca", color: "#7f1d1d" },
+  active_open:   { label: "Aberto",    bg: "rgba(52,211,153,0.15)", color: "#34d399" },
+  active_full:   { label: "Lotado",    bg: "rgba(251,191,36,0.15)", color: "#fbbf24" },
+  closed:        { label: "Encerrado", bg: "rgba(255,255,255,0.08)", color: "#8e8e93" },
+  cancelled:     { label: "Cancelado", bg: "rgba(239,68,68,0.15)",  color: "#f87171" },
 };
 
 export function GameCard({ game }: GameCardProps) {
-  const participantCount = game.game_participants.length;
+  const participantCount = game.game_participants.length + game.game_guests.length;
   const isFull = participantCount >= game.max_players;
   const fillPct = Math.min((participantCount / game.max_players) * 100, 100);
 
@@ -165,19 +165,17 @@ export function GameCard({ game }: GameCardProps) {
         <div
           className="px-4 py-2 flex items-center justify-between text-xs"
           style={{
-            borderTop: "1px solid var(--color-border)",
-            background: "oklch(0.98 0.005 85)",
+            borderTop: "1px solid var(--border)",
+            background: "#141414",
           }}
         >
           <span className="text-muted-foreground">
             organizado por{" "}
-            <span style={{ color: "var(--color-brand)", fontWeight: 600 }}>
-              {game.profiles.name.split(" ")[0]}
+            <span style={{ color: "#f2f2f2", fontWeight: 700 }}>
+              {(game.profiles.name ?? "Alguém").split(" ")[0]}
             </span>
           </span>
-          <span
-            style={{ color: "var(--color-lime)", fontSize: "16px" }}
-          >
+          <span style={{ color: "var(--color-brand)", fontSize: "16px" }}>
             →
           </span>
         </div>

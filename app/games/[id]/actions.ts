@@ -50,7 +50,7 @@ export async function joinGame(gameId: string) {
 
   if (!game) return { error: "Jogo não encontrado" };
   if (game.status !== "active") return { error: "Este jogo não está ativo" };
-  if (!canJoin(game.date, game.time))
+  if (!canJoin(game.date, game.time, game.allow_late_checkin))
     return { error: "Não é possível entrar: vôlei fechado (menos de 1h para o jogo)" };
 
   const participantCount =
@@ -92,13 +92,13 @@ export async function leaveGame(gameId: string) {
 
   const { data: game } = await supabase
     .from("games")
-    .select("date, time, status, max_players")
+    .select("date, time, status, max_players, allow_early_leave")
     .eq("id", gameId)
     .single();
 
   if (!game) return { error: "Jogo não encontrado" };
   if (game.status !== "active") return { error: "Este jogo não está ativo" };
-  if (!canLeave(game.date, game.time))
+  if (!canLeave(game.date, game.time, game.allow_early_leave))
     return { error: "Não é possível sair: faltam menos de 2h para o jogo" };
 
   const { error } = await supabase
@@ -247,7 +247,7 @@ export async function addGuest(gameId: string, guestName: string) {
 
   if (!game) return { error: "Jogo não encontrado" };
   if (game.status !== "active") return { error: "Este jogo não está ativo" };
-  if (!canJoin(game.date, game.time))
+  if (!canJoin(game.date, game.time, game.allow_late_checkin))
     return { error: "Inscrições encerradas (menos de 1h para o jogo)" };
 
   const isParticipant = game.game_participants.some((p: { user_id: string }) => p.user_id === user.id);

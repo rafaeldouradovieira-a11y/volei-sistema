@@ -41,7 +41,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
   const participant = game.game_participants.find((p) => p.user_id === currentUserId);
   const inWaitingList = game.waiting_list.find((w) => w.user_id === currentUserId);
   const timeStatus = getGameTimeStatus(game.date, game.time);
-  const totalOccupied = game.game_participants.length + game.game_guests.length;
+  const totalOccupied = game.game_participants.length + game.game_guests.filter((g) => g.status === "active").length;
   const gameIsFull = totalOccupied >= game.max_players;
   const myGuests = game.game_guests.filter((g) => g.invited_by === currentUserId);
 
@@ -76,7 +76,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
       {/* Participante: sair */}
       {participant && game.status === "active" && (
         <>
-          {canLeave(game.date, game.time) ? (
+          {canLeave(game.date, game.time, game.allow_early_leave) ? (
             <ActionBtn
               variant="ghost-danger"
               disabled={loading === "leave"}
@@ -113,7 +113,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
       {/* Não participante: entrar */}
       {!participant && !inWaitingList && game.status === "active" && (
         <>
-          {canJoin(game.date, game.time) ? (
+          {canJoin(game.date, game.time, game.allow_late_checkin) ? (
             <ActionBtn
               variant="primary"
               disabled={loading === "join"}
@@ -137,7 +137,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
       )}
 
       {/* Adicionar convidado */}
-      {participant && game.status === "active" && canJoin(game.date, game.time) && !gameIsFull && (
+      {participant && game.status === "active" && canJoin(game.date, game.time, game.allow_late_checkin) && !gameIsFull && (
         <AddGuestButton
           gameId={game.id}
           loading={loading}
@@ -163,7 +163,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
               <span className="font-medium" style={{ color: "var(--color-brand)" }}>
                 {g.name}
               </span>
-              {canLeave(game.date, game.time) && (
+              {canLeave(game.date, game.time, game.allow_early_leave) && (
                 <button
                   disabled={loading === `rm-guest-${g.id}`}
                   onClick={() => handle(() => removeGuest(g.id, game.id), `rm-guest-${g.id}`)}
@@ -186,7 +186,7 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
             color="amber"
             text="Você está na lista de espera"
           />
-          {canLeave(game.date, game.time) && (
+          {canLeave(game.date, game.time, game.allow_early_leave) && (
             <ActionBtn
               variant="ghost"
               disabled={loading === "leave-wait"}
@@ -308,7 +308,7 @@ function PaymentSection({
   const [open, setOpen] = useState(false);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const participantCount = game.game_participants.length + game.game_guests.length;
+  const participantCount = game.game_participants.length + game.game_guests.filter((g) => g.status === "active").length;
   const pricePerPerson =
     game.price_total && participantCount > 0
       ? (game.price_total / participantCount).toFixed(2)

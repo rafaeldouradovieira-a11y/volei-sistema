@@ -102,6 +102,8 @@ export type Database = {
           price_total: number | null;
           pix_key: string | null;
           status: "active" | "closed" | "cancelled";
+          allow_late_checkin: boolean;
+          allow_early_leave: boolean;
           created_at: string;
         };
         Insert: {
@@ -117,6 +119,8 @@ export type Database = {
           price_total?: number | null;
           pix_key?: string | null;
           status?: "active" | "closed" | "cancelled";
+          allow_late_checkin?: boolean;
+          allow_early_leave?: boolean;
           created_at?: string;
         };
         Update: {
@@ -132,6 +136,8 @@ export type Database = {
           price_total?: number | null;
           pix_key?: string | null;
           status?: "active" | "closed" | "cancelled";
+          allow_late_checkin?: boolean;
+          allow_early_leave?: boolean;
           created_at?: string;
         };
         Relationships: [

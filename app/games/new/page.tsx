@@ -21,10 +21,16 @@ export default function NewGamePage() {
     max_players: "12",
     price_total: "",
     pix_key: "",
+    allow_late_checkin: false,
+    allow_early_leave: false,
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  function handleCheck(e: React.ChangeEvent<HTMLInputElement>) {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.checked }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -53,6 +59,8 @@ export default function NewGamePage() {
           max_players: parseInt(form.max_players),
           price_total: form.price_total ? parseFloat(form.price_total) : null,
           pix_key: form.pix_key || null,
+          allow_late_checkin: form.allow_late_checkin,
+          allow_early_leave: form.allow_early_leave,
         })
         .select()
         .single();
@@ -202,6 +210,26 @@ export default function NewGamePage() {
             </Field>
           </Section>
 
+          {/* Section: regras */}
+          <Section title="Regras">
+            <div className="space-y-3">
+              <CheckboxField
+                name="allow_late_checkin"
+                checked={form.allow_late_checkin}
+                onChange={handleCheck}
+                label="Checkin atrasado"
+                description="Remove o limite de 1h para entrar na lista"
+              />
+              <CheckboxField
+                name="allow_early_leave"
+                checked={form.allow_early_leave}
+                onChange={handleCheck}
+                label="Saída liberada"
+                description="Remove o limite de 2h para sair da lista"
+              />
+            </div>
+          </Section>
+
           {/* Submit */}
           <button
             type="submit"
@@ -264,6 +292,58 @@ function Field({
         {children}
       </div>
     </div>
+  );
+}
+
+function CheckboxField({
+  name,
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <label
+      className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors select-none"
+      style={{
+        background: checked ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.04)",
+        border: `1.5px solid ${checked ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.08)"}`,
+      }}
+    >
+      <input
+        type="checkbox"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+        className="hidden"
+      />
+      {/* custom checkbox */}
+      <span
+        className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-all"
+        style={{
+          background: checked ? "var(--color-brand)" : "rgba(255,255,255,0.08)",
+          border: `1.5px solid ${checked ? "var(--color-brand)" : "rgba(255,255,255,0.2)"}`,
+        }}
+      >
+        {checked && (
+          <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+            <path d="M1 4L4 7.5L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      <div>
+        <p className="text-sm font-semibold" style={{ fontFamily: "var(--font-syne)", color: checked ? "var(--color-brand)" : "#f2f2f2" }}>
+          {label}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: "#8e8e93" }}>{description}</p>
+      </div>
+    </label>
   );
 }
 

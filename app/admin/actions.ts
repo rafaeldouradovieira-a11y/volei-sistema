@@ -82,6 +82,26 @@ export async function removePhone(id: string): Promise<AddPhoneResult> {
   }
 }
 
+export async function authorizeFromAttempt(phone: string): Promise<AddPhoneResult> {
+  try {
+    const { admin } = await requireAdmin();
+
+    const { error } = await admin.from("authorized_phones").insert({ phone });
+
+    if (error) {
+      if (error.code === "23505") return { ok: false, error: "Número já autorizado." };
+      return { ok: false, error: error.message };
+    }
+
+    await admin.from("unauthorized_attempts").delete().eq("phone", phone);
+
+    revalidatePath("/admin");
+    return { ok: true };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
 export async function toggleAdmin(id: string, is_admin: boolean): Promise<AddPhoneResult> {
   try {
     const { admin } = await requireAdmin();

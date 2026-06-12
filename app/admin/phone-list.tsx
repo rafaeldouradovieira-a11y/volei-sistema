@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/phone";
-import { removePhone, toggleAdmin } from "./actions";
+import { removePhone, toggleAdmin, authorizeFromAttempt } from "./actions";
 import { AddPhoneForm } from "./add-phone-form";
 import type { AuthorizedPhone, Profile, UnauthorizedAttempt } from "@/lib/supabase/types";
 import { useRouter } from "next/navigation";
@@ -19,8 +19,9 @@ interface PhoneListProps {
 export function PhoneList({ phones, profileMap, recentAttempts }: PhoneListProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
-  const [showAttempts, setShowAttempts] = useState(false);
+  const [showAttempts, setShowAttempts] = useState(true);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [loadingPhone, setLoadingPhone] = useState<string | null>(null);
 
   async function handleRemove(id: string) {
     if (!confirm("Remover este número? O usuário perderá acesso.")) return;
@@ -29,6 +30,14 @@ export function PhoneList({ phones, profileMap, recentAttempts }: PhoneListProps
     setLoadingId(null);
     if (!result.ok) toast.error(result.error);
     else router.refresh();
+  }
+
+  async function handleAuthorize(phone: string) {
+    setLoadingPhone(phone);
+    const result = await authorizeFromAttempt(phone);
+    setLoadingPhone(null);
+    if (!result.ok) toast.error(result.error);
+    else { toast.success("Número autorizado!"); router.refresh(); }
   }
 
   async function handleToggleAdmin(id: string, current: boolean) {
@@ -41,6 +50,64 @@ export function PhoneList({ phones, profileMap, recentAttempts }: PhoneListProps
 
   return (
     <div className="space-y-5">
+      {/* Unauthorized attempts — shown first so admin can act quickly */}
+      {recentAttempts.length > 0 && (
+        <div
+          className="rounded-2xl p-4 space-y-3"
+          style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}
+        >
+          <button
+            onClick={() => setShowAttempts(!showAttempts)}
+            className="flex items-center gap-2 text-sm font-semibold w-full"
+            style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+          >
+            <span
+              className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+              style={{ background: "var(--color-brand)", color: "white" }}
+            >
+              {recentAttempts.length}
+            </span>
+            Aguardando autorização
+            <span className="ml-auto opacity-50 font-normal text-xs">
+              {showAttempts ? "▲" : "▼"}
+            </span>
+          </button>
+
+          {showAttempts && (
+            <div className="space-y-2">
+              {recentAttempts.map((att) => (
+                <div
+                  key={att.id}
+                  className="rounded-xl px-3 py-2.5 flex items-center gap-3"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold" style={{ color: "#f2f2f2" }}>
+                      {formatPhone(att.phone)}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "#8e8e93" }}>
+                      {format(new Date(att.attempted_at), "dd/MM HH:mm", { locale: ptBR })}
+                    </p>
+                  </div>
+                  <button
+                    disabled={loadingPhone === att.phone}
+                    onClick={() => handleAuthorize(att.phone)}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-85 active:scale-95 disabled:opacity-50"
+                    style={{
+                      background: "var(--color-brand)",
+                      color: "white",
+                      fontFamily: "var(--font-syne)",
+                    }}
+                  >
+                    {loadingPhone === att.phone ? "..." : "Autorizar"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2
@@ -208,56 +275,6 @@ export function PhoneList({ phones, profileMap, recentAttempts }: PhoneListProps
         })}
       </div>
 
-      {/* Unauthorized attempts */}
-      {recentAttempts.length > 0 && (
-        <div className="mt-4">
-          <button
-            onClick={() => setShowAttempts(!showAttempts)}
-            className="flex items-center gap-2 text-sm font-semibold mb-3"
-            style={{ fontFamily: "var(--font-syne)", color: "oklch(0.45 0.12 25)" }}
-          >
-            <span
-              className="w-5 h-5 rounded-full flex items-center justify-center text-xs"
-              style={{ background: "oklch(0.85 0.06 25)", color: "oklch(0.35 0.1 25)" }}
-            >
-              !
-            </span>
-            {recentAttempts.length} tentativa
-            {recentAttempts.length > 1 ? "s" : ""} bloqueada
-            {recentAttempts.length > 1 ? "s" : ""}
-            <span className="opacity-60 font-normal">
-              {showAttempts ? "▲" : "▼"}
-            </span>
-          </button>
-
-          {showAttempts && (
-            <div className="space-y-2">
-              {recentAttempts.map((att) => (
-                <div
-                  key={att.id}
-                  className="rounded-xl px-4 py-3 flex items-center justify-between"
-                  style={{
-                    background: "oklch(0.97 0.01 25)",
-                    border: "1px solid oklch(0.88 0.04 25)",
-                  }}
-                >
-                  <span
-                    className="text-sm font-semibold"
-                    style={{ color: "oklch(0.35 0.1 25)" }}
-                  >
-                    {formatPhone(att.phone)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(att.attempted_at), "dd/MM HH:mm", {
-                      locale: ptBR,
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

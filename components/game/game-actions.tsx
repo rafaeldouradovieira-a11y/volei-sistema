@@ -23,6 +23,7 @@ import {
   closeGame,
   cancelGame,
   saveProof,
+  addParticipantByPhone,
 } from "@/app/games/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { GameWithDetails } from "@/lib/supabase/types";
@@ -31,9 +32,10 @@ import { canJoin, canLeave, getGameTimeStatus } from "@/lib/game-time";
 interface GameActionsProps {
   game: GameWithDetails;
   currentUserId: string | null;
+  isAdmin?: boolean;
 }
 
-export function GameActions({ game, currentUserId }: GameActionsProps) {
+export function GameActions({ game, currentUserId, isAdmin = false }: GameActionsProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -196,6 +198,15 @@ export function GameActions({ game, currentUserId }: GameActionsProps) {
             </ActionBtn>
           )}
         </div>
+      )}
+
+      {/* Admin: adicionar por telefone */}
+      {isAdmin && game.status === "active" && (
+        <AddByPhoneButton
+          gameId={game.id}
+          loading={loading}
+          onAdd={(phone) => handle(() => addParticipantByPhone(game.id, phone), "add-phone")}
+        />
       )}
 
       {/* Organizador */}
@@ -544,6 +555,83 @@ function AddGuestButton({
             <ActionBtn variant="primary" disabled={loading === "add-guest"}>
               <UserRoundPlus size={15} />
               {loading === "add-guest" ? "Adicionando..." : "Adicionar"}
+            </ActionBtn>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function AddByPhoneButton({
+  gameId,
+  loading,
+  onAdd,
+}: {
+  gameId: string;
+  loading: string | null;
+  onAdd: (phone: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState("");
+
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPhone(e.target.value.replace(/\D/g, "").slice(0, 11));
+  }
+
+  const displayPhone =
+    phone.length >= 10
+      ? `(${phone.slice(0, 2)}) ${phone.slice(2, 7)}-${phone.slice(7)}`
+      : phone.length > 0
+      ? `(${phone.slice(0, 2)}) ${phone.slice(2)}`
+      : "";
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!phone || loading === "add-phone") return;
+    onAdd(phone);
+    setPhone("");
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <ActionBtn variant="outline" onClick={() => setOpen(true)}>
+        <UserPlus size={15} />
+        Adicionar por telefone
+      </ActionBtn>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar participante</DialogTitle>
+            <DialogDescription>
+              Digite o WhatsApp de quem está na lista de autorizados.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-1">
+            <div className="space-y-1.5">
+              <label
+                className="block text-xs font-semibold tracking-widest uppercase"
+                style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+              >
+                WhatsApp
+              </label>
+              <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="(11) 99999-9999"
+                  value={displayPhone}
+                  onChange={handlePhoneChange}
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+            <ActionBtn variant="primary" disabled={loading === "add-phone"}>
+              <UserPlus size={15} />
+              {loading === "add-phone" ? "Adicionando..." : "Adicionar"}
             </ActionBtn>
           </form>
         </DialogContent>

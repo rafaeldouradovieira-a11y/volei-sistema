@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { canJoin, canLeave, isWithin48Hours } from "@/lib/game-time";
+import { normalizePhone } from "@/lib/phone";
 import type { MatchPlayer } from "@/lib/supabase/types";
 
 // Promotes oldest waiting guests to active when within 48h and spots are available
@@ -417,6 +419,61 @@ export async function updateGame(
   revalidatePath(`/games/${gameId}`);
   revalidatePath("/");
   return { success: "Jogo atualizado!" };
+}
+
+export async function addParticipantByPhone(gameId: string, phone: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  const admin = createAdminClient();
+
+  const { data: caller } = await admin
+    .from("authorized_phones")
+    .select("is_admin")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (!caller?.is_admin) return { error: "Acesso negado" };
+
+  const normalized = normalizePhone(phone);
+  if (!normalized || normalized.length < 10) return { error: "Telefone inválido" };
+
+  const { data: target } = await admin
+    .from("authorized_phones")
+    .select("auth_user_id, display_name")
+    .eq("phone", normalized)
+    .maybeSingle();
+
+  if (!target) return { error: "Telefone não encontrado na lista de autorizados" };
+  if (!target.auth_user_id) return { error: "Esta pessoa ainda não acessou o sistema" };
+
+  const { data: game } = await admin
+    .from("games")
+    .select("status, game_participants(user_id)")
+    .eq("id", gameId)
+    .single();
+
+  if (!game) return { error: "Jogo não encontrado" };
+  if (game.status !== "active") return { error: "Este jogo não está ativo" };
+
+  const alreadyIn = (game.game_participants as { user_id: string }[]).some(
+    (p) => p.user_id === target.auth_user_id
+  );
+  if (alreadyIn) return { error: "Esta pessoa já está na lista" };
+
+  const { error } = await admin.from("game_participants").insert({
+    game_id: gameId,
+    user_id: target.auth_user_id,
+  });
+
+  if (error) {
+    if (error.code === "23505") return { error: "Esta pessoa já está na lista" };
+    return { error: error.message };
+  }
+
+  revalidatePath(`/games/${gameId}`);
+  const name = target.display_name ?? normalized;
+  return { success: `${name} adicionado(a) à lista!` };
 }
 
 export async function cancelGame(gameId: string) {

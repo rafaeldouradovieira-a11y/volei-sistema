@@ -35,6 +35,16 @@ export default async function GamePage({ params }: Props) {
 
   if (!data) notFound();
 
+  // Check if current user is admin
+  const { data: adminCheck } = user
+    ? await (await import("@/lib/supabase/admin")).createAdminClient()
+        .from("authorized_phones")
+        .select("is_admin")
+        .eq("auth_user_id", user.id)
+        .maybeSingle()
+    : { data: null };
+  const isAdmin = adminCheck?.is_admin ?? false;
+
   // Fetch today's matches for this game
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -286,7 +296,7 @@ export default async function GamePage({ params }: Props) {
       <main className="max-w-2xl mx-auto px-4 py-5 space-y-4">
         {/* Actions */}
         <div className="bg-card rounded-2xl p-4 shadow-sm">
-          <GameActions game={game} currentUserId={user?.id ?? null} />
+          <GameActions game={game} currentUserId={user?.id ?? null} isAdmin={isAdmin} />
         </div>
 
         {/* Live match + history */}

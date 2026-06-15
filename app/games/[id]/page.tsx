@@ -7,6 +7,7 @@ import { ArrowLeft, MapPin, Clock, Pencil } from "lucide-react";
 import { GameActions } from "@/components/game/game-actions";
 import { MatchSection } from "@/components/game/match-section";
 import { CopyListButton } from "@/components/game/copy-list-button";
+import { PromoteWaitingButton } from "@/components/game/promote-waiting-button";
 import type { MatchWithStarter } from "@/components/game/match-section";
 import type { GameWithDetails, Match } from "@/lib/supabase/types";
 
@@ -437,6 +438,13 @@ export default async function GamePage({ params }: Props) {
                         </span>
                       )}
                     </div>
+                    {isAdmin && game.status === "active" && (
+                      <PromoteWaitingButton
+                        gameId={id}
+                        id={w.id}
+                        kind={w.kind}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

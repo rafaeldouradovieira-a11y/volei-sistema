@@ -421,6 +421,49 @@ export async function updateGame(
   return { success: "Jogo atualizado!" };
 }
 
+export async function promoteToPlayer(gameId: string, id: string, kind: "participant" | "guest") {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  const admin = createAdminClient();
+  const { data: caller } = await admin
+    .from("authorized_phones")
+    .select("is_admin")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (!caller?.is_admin) return { error: "Acesso negado" };
+
+  if (kind === "guest") {
+    const { error } = await admin
+      .from("game_guests")
+      .update({ status: "active" })
+      .eq("id", id)
+      .eq("game_id", gameId);
+    if (error) return { error: error.message };
+  } else {
+    const { data: entry } = await admin
+      .from("waiting_list")
+      .select("user_id")
+      .eq("id", id)
+      .eq("game_id", gameId)
+      .single();
+    if (!entry) return { error: "Entrada não encontrada" };
+
+    const { error: insertError } = await admin
+      .from("game_participants")
+      .insert({ game_id: gameId, user_id: entry.user_id });
+    if (insertError) {
+      if (insertError.code === "23505") return { error: "Pessoa já está na lista" };
+      return { error: insertError.message };
+    }
+    await admin.from("waiting_list").delete().eq("id", id);
+  }
+
+  revalidatePath(`/games/${gameId}`);
+  return { success: "Movido para a lista!" };
+}
+
 export async function addParticipantByPhone(gameId: string, phone: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

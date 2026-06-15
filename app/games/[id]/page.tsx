@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale";
 import { ArrowLeft, MapPin, Clock, Pencil } from "lucide-react";
 import { GameActions } from "@/components/game/game-actions";
 import { MatchSection } from "@/components/game/match-section";
+import { CopyListButton } from "@/components/game/copy-list-button";
 import type { MatchWithStarter } from "@/components/game/match-section";
 import type { GameWithDetails, Match } from "@/lib/supabase/types";
 
@@ -135,6 +136,12 @@ export default async function GamePage({ params }: Props) {
 
   const dayStr = format(parseISO(game.date), "EEEE", { locale: ptBR });
   const dateStr = format(parseISO(game.date), "dd 'de' MMMM", { locale: ptBR });
+
+  const dayOfWeekUpper = dayStr.split("-")[0].toUpperCase();
+  const dateShort = format(parseISO(game.date), "d/M");
+  const startHour = parseInt(game.time.slice(0, 2));
+  const endHour = startHour + game.duration_hours;
+  const copyTitle = (game.title ?? game.location).toUpperCase();
 
   const status = STATUS_CONFIG[game.status];
 
@@ -300,17 +307,31 @@ export default async function GamePage({ params }: Props) {
             >
               Lista de jogadores
             </h3>
-            {game.price_total && participantCount > 0 && (
-              <span className="text-xs text-muted-foreground">
-                <span
-                  className="font-semibold"
-                  style={{ color: "var(--color-brand)" }}
-                >
-                  {confirmedCount}
+            <div className="flex items-center gap-3">
+              {game.price_total && participantCount > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  <span
+                    className="font-semibold"
+                    style={{ color: "var(--color-brand)" }}
+                  >
+                    {confirmedCount}
+                  </span>
+                  /{participantCount} pagos
                 </span>
-                /{participantCount} pagos
-              </span>
-            )}
+              )}
+              {allPlayers.length > 0 && (
+                <CopyListButton
+                  title={copyTitle}
+                  dayOfWeek={dayOfWeekUpper}
+                  dateShort={dateShort}
+                  location={game.location}
+                  court={game.court ?? null}
+                  startHour={startHour}
+                  endHour={endHour}
+                  players={allPlayers.map((p) => ({ name: p.name ?? "—" }))}
+                />
+              )}
+            </div>
           </div>
 
           {allPlayers.length === 0 ? (

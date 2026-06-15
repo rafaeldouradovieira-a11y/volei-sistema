@@ -421,6 +421,47 @@ export async function updateGame(
   return { success: "Jogo atualizado!" };
 }
 
+export async function removePlayerAsAdmin(gameId: string, id: string, kind: "participant" | "guest") {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  const admin = createAdminClient();
+  const { data: caller } = await admin
+    .from("authorized_phones")
+    .select("is_admin")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (!caller?.is_admin) return { error: "Acesso negado" };
+
+  if (kind === "guest") {
+    const { error } = await admin.from("game_guests").delete().eq("id", id).eq("game_id", gameId);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await admin.from("game_participants").delete().eq("id", id).eq("game_id", gameId);
+    if (error) return { error: error.message };
+
+    // Promove primeiro da lista de espera
+    const { data: game } = await admin.from("games").select("max_players, date, time").eq("id", gameId).single();
+    if (game) {
+      const { data: firstWaiting } = await admin
+        .from("waiting_list")
+        .select("*")
+        .eq("game_id", gameId)
+        .order("joined_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (firstWaiting) {
+        await admin.from("game_participants").insert({ game_id: gameId, user_id: firstWaiting.user_id });
+        await admin.from("waiting_list").delete().eq("id", firstWaiting.id);
+      }
+    }
+  }
+
+  revalidatePath(`/games/${gameId}`);
+  return { success: "Participante removido" };
+}
+
 export async function promoteToPlayer(gameId: string, id: string, kind: "participant" | "guest") {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

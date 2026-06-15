@@ -8,6 +8,7 @@ import { GameActions } from "@/components/game/game-actions";
 import { MatchSection } from "@/components/game/match-section";
 import { CopyListButton } from "@/components/game/copy-list-button";
 import { PromoteWaitingButton } from "@/components/game/promote-waiting-button";
+import { RemovePlayerButton } from "@/components/game/remove-player-button";
 import type { MatchWithStarter } from "@/components/game/match-section";
 import type { GameWithDetails, Match } from "@/lib/supabase/types";
 
@@ -389,6 +390,14 @@ export default async function GamePage({ params }: Props) {
                     >
                       {p.paymentStatus === "confirmed" ? "Pago" : "Pendente"}
                     </span>
+                  )}
+                  {isAdmin && game.status === "active" && (
+                    <RemovePlayerButton
+                      gameId={id}
+                      id={p.id}
+                      kind={p.kind}
+                      name={p.name ?? "—"}
+                    />
                   )}
                 </div>
               ))}

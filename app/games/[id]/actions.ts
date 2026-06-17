@@ -7,6 +7,19 @@ import { canJoin, canLeave, isWithin48Hours } from "@/lib/game-time";
 import { normalizePhone } from "@/lib/phone";
 import type { MatchPlayer } from "@/lib/supabase/types";
 
+async function isCurrentUserAdmin(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("authorized_phones")
+    .select("is_admin")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  return data?.is_admin ?? false;
+}
+
 // Promotes oldest waiting guests to active when within 48h and spots are available
 async function promoteWaitingGuests(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -52,7 +65,8 @@ export async function joinGame(gameId: string) {
 
   if (!game) return { error: "Jogo não encontrado" };
   if (game.status !== "active") return { error: "Este jogo não está ativo" };
-  if (!canJoin(game.date, game.time, game.allow_late_checkin))
+  const userIsAdmin = await isCurrentUserAdmin();
+  if (!userIsAdmin && !canJoin(game.date, game.time, game.allow_late_checkin))
     return { error: "Não é possível entrar: vôlei fechado (menos de 1h para o jogo)" };
 
   const participantCount =
@@ -217,7 +231,8 @@ export async function closeGame(gameId: string) {
     .eq("id", gameId)
     .single();
 
-  if (!game || game.organizer_id !== user.id)
+  const closeIsAdmin = await isCurrentUserAdmin();
+  if (!game || (!closeIsAdmin && game.organizer_id !== user.id))
     return { error: "Apenas o organizador pode encerrar o jogo" };
 
   const { error } = await supabase
@@ -249,11 +264,12 @@ export async function addGuest(gameId: string, guestName: string) {
 
   if (!game) return { error: "Jogo não encontrado" };
   if (game.status !== "active") return { error: "Este jogo não está ativo" };
-  if (!canJoin(game.date, game.time, game.allow_late_checkin))
+  const guestAdderIsAdmin = await isCurrentUserAdmin();
+  if (!guestAdderIsAdmin && !canJoin(game.date, game.time, game.allow_late_checkin))
     return { error: "Inscrições encerradas (menos de 1h para o jogo)" };
 
   const isParticipant = game.game_participants.some((p: { user_id: string }) => p.user_id === user.id);
-  if (!isParticipant) return { error: "Apenas participantes podem adicionar convidados" };
+  if (!guestAdderIsAdmin && !isParticipant) return { error: "Apenas participantes podem adicionar convidados" };
 
   // Promote any 48h-eligible waiting guests before counting active spots
   await promoteWaitingGuests(supabase, gameId, game.date, game.time, game.max_players);
@@ -395,7 +411,8 @@ export async function updateGame(
     .eq("id", gameId)
     .single();
 
-  if (!game || game.organizer_id !== user.id)
+  const editIsAdmin = await isCurrentUserAdmin();
+  if (!game || (!editIsAdmin && game.organizer_id !== user.id))
     return { error: "Apenas o organizador pode editar o jogo" };
 
   const { error } = await supabase
@@ -573,7 +590,8 @@ export async function cancelGame(gameId: string) {
     .eq("id", gameId)
     .single();
 
-  if (!game || game.organizer_id !== user.id)
+  const cancelIsAdmin = await isCurrentUserAdmin();
+  if (!game || (!cancelIsAdmin && game.organizer_id !== user.id))
     return { error: "Apenas o organizador pode cancelar o jogo" };
 
   const { error } = await supabase

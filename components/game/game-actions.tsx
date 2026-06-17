@@ -115,7 +115,7 @@ export function GameActions({ game, currentUserId, isAdmin = false }: GameAction
       {/* Não participante: entrar */}
       {!participant && !inWaitingList && game.status === "active" && (
         <>
-          {canJoin(game.date, game.time, game.allow_late_checkin) ? (
+          {(isAdmin || canJoin(game.date, game.time, game.allow_late_checkin)) ? (
             <ActionBtn
               variant="primary"
               disabled={loading === "join"}
@@ -139,7 +139,7 @@ export function GameActions({ game, currentUserId, isAdmin = false }: GameAction
       )}
 
       {/* Adicionar convidado */}
-      {participant && game.status === "active" && canJoin(game.date, game.time, game.allow_late_checkin) && !gameIsFull && (
+      {(participant || isAdmin) && game.status === "active" && (isAdmin || (canJoin(game.date, game.time, game.allow_late_checkin) && !gameIsFull)) && (
         <AddGuestButton
           gameId={game.id}
           loading={loading}
@@ -210,7 +210,7 @@ export function GameActions({ game, currentUserId, isAdmin = false }: GameAction
       )}
 
       {/* Organizador */}
-      {isOrganizer && game.status === "active" && (
+      {(isOrganizer || isAdmin) && game.status === "active" && (
         <OrganizerActions
           game={game}
           loading={loading}

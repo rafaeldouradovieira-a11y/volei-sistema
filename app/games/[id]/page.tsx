@@ -180,7 +180,7 @@ export default async function GamePage({ params }: Props) {
           >
             Detalhe do jogo
           </span>
-          {user?.id === game.organizer_id && game.status === "active" && (
+          {(user?.id === game.organizer_id || isAdmin) && game.status === "active" && (
             <Link href={`/games/${id}/edit`} className="ml-auto">
               <button
                 className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:opacity-80"

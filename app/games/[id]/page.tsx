@@ -305,6 +305,7 @@ export default async function GamePage({ params }: Props) {
         <MatchSection
           gameId={id}
           isParticipant={isParticipant}
+          isAdmin={isAdmin}
           liveMatch={liveMatch}
           todayMatches={todayFinished}
           allPlayers={selectablePlayers}

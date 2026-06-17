@@ -26,9 +26,10 @@ interface Props {
   initialMatch: Match;
   currentUserId: string | null;
   starterName: string | null;
+  isAdmin?: boolean;
 }
 
-export default function Scoreboard({ initialMatch, currentUserId, starterName }: Props) {
+export default function Scoreboard({ initialMatch, currentUserId, starterName, isAdmin = false }: Props) {
   const router = useRouter();
   const [match, setMatch] = useState(initialMatch);
   const [timer, setTimer] = useState(elapsed(initialMatch.started_at));
@@ -37,7 +38,7 @@ export default function Scoreboard({ initialMatch, currentUserId, starterName }:
   const [flash, setFlash] = useState<{ team: 1 | 2; key: number } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const isStarter = currentUserId === match.started_by;
+  const isStarter = currentUserId === match.started_by || isAdmin;
   const isLive = match.status === "live";
 
   // Realtime score sync

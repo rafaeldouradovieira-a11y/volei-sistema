@@ -29,13 +29,19 @@ import { createClient } from "@/lib/supabase/client";
 import type { GameWithDetails } from "@/lib/supabase/types";
 import { canJoin, canLeave, getGameTimeStatus } from "@/lib/game-time";
 
+interface AdminContact {
+  phone: string;
+  name: string;
+}
+
 interface GameActionsProps {
   game: GameWithDetails;
   currentUserId: string | null;
   isAdmin?: boolean;
+  adminContacts?: AdminContact[];
 }
 
-export function GameActions({ game, currentUserId, isAdmin = false }: GameActionsProps) {
+export function GameActions({ game, currentUserId, isAdmin = false, adminContacts = [] }: GameActionsProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -204,6 +210,7 @@ export function GameActions({ game, currentUserId, isAdmin = false }: GameAction
       {isAdmin && game.status === "active" && (
         <AddByPhoneButton
           gameId={game.id}
+          contacts={adminContacts}
           loading={loading}
           onAdd={(phone) => handle(() => addParticipantByPhone(game.id, phone), "add-phone")}
         />
@@ -564,76 +571,127 @@ function AddGuestButton({
 }
 
 function AddByPhoneButton({
-  gameId,
+  contacts,
   loading,
   onAdd,
 }: {
   gameId: string;
+  contacts: AdminContact[];
   loading: string | null;
   onAdd: (phone: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [phone, setPhone] = useState("");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<AdminContact | null>(null);
 
-  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setPhone(e.target.value.replace(/\D/g, "").slice(0, 11));
+  const filtered = search.trim().length === 0
+    ? contacts
+    : contacts.filter((c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.phone.includes(search.replace(/\D/g, ""))
+      );
+
+  function handleSelect(c: AdminContact) {
+    setSelected(c);
+    setSearch(c.name);
   }
 
-  const displayPhone =
-    phone.length >= 10
-      ? `(${phone.slice(0, 2)}) ${phone.slice(2, 7)}-${phone.slice(7)}`
-      : phone.length > 0
-      ? `(${phone.slice(0, 2)}) ${phone.slice(2)}`
-      : "";
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!phone || loading === "add-phone") return;
-    onAdd(phone);
-    setPhone("");
+  function handleAdd() {
+    if (!selected || loading === "add-phone") return;
+    onAdd(selected.phone);
     setOpen(false);
+    setSelected(null);
+    setSearch("");
+  }
+
+  function handleOpenChange(o: boolean) {
+    setOpen(o);
+    if (!o) { setSearch(""); setSelected(null); }
   }
 
   return (
     <>
       <ActionBtn variant="outline" onClick={() => setOpen(true)}>
         <UserPlus size={15} />
-        Adicionar por telefone
+        Adicionar à lista
       </ActionBtn>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Adicionar participante</DialogTitle>
             <DialogDescription>
-              Digite o WhatsApp de quem está na lista de autorizados.
+              {contacts.length === 0
+                ? "Todos os membros autorizados já estão na lista."
+                : "Busque pelo nome ou telefone."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 mt-1">
-            <div className="space-y-1.5">
-              <label
-                className="block text-xs font-semibold tracking-widest uppercase"
-                style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
-              >
-                WhatsApp
-              </label>
+
+          {contacts.length > 0 && (
+            <div className="space-y-3 mt-1">
+              {/* Search input */}
               <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
                 <input
-                  type="tel"
-                  inputMode="numeric"
-                  placeholder="(11) 99999-9999"
-                  value={displayPhone}
-                  onChange={handlePhoneChange}
-                  required
+                  type="text"
+                  placeholder="Buscar nome ou telefone..."
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setSelected(null); }}
                   autoFocus
                 />
               </div>
+
+              {/* Contact list */}
+              <div
+                className="rounded-xl overflow-y-auto"
+                style={{ maxHeight: 240, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                {filtered.length === 0 ? (
+                  <p className="text-xs text-center text-muted-foreground py-6">Nenhum contato encontrado</p>
+                ) : (
+                  filtered.map((c) => {
+                    const isActive = selected?.phone === c.phone;
+                    return (
+                      <button
+                        key={c.phone}
+                        type="button"
+                        onClick={() => handleSelect(c)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+                        style={{
+                          background: isActive ? "rgba(12,43,26,0.18)" : undefined,
+                          borderLeft: isActive ? "3px solid var(--color-brand)" : "3px solid transparent",
+                        }}
+                      >
+                        <div
+                          className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold"
+                          style={{
+                            background: isActive ? "var(--color-brand)" : "rgba(255,255,255,0.08)",
+                            color: isActive ? "var(--color-lime)" : "#e5e5e5",
+                            fontFamily: "var(--font-syne)",
+                          }}
+                        >
+                          {c.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: isActive ? "var(--color-brand)" : "#f2f2f2" }}>
+                            {c.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{c.phone}</p>
+                        </div>
+                        {isActive && (
+                          <span className="text-xs font-bold shrink-0" style={{ color: "var(--color-brand)" }}>✓</span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              <ActionBtn variant="primary" disabled={!selected || loading === "add-phone"} onClick={handleAdd}>
+                <UserPlus size={15} />
+                {loading === "add-phone" ? "Adicionando..." : selected ? `Adicionar ${selected.name.split(" ")[0]}` : "Selecione um contato"}
+              </ActionBtn>
             </div>
-            <ActionBtn variant="primary" disabled={loading === "add-phone"}>
-              <UserPlus size={15} />
-              {loading === "add-phone" ? "Adicionando..." : "Adicionar"}
-            </ActionBtn>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
     </>

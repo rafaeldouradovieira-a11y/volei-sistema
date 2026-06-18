@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, MapPin, Clock, Pencil } from "lucide-react";
@@ -38,14 +39,41 @@ export default async function GamePage({ params }: Props) {
   if (!data) notFound();
 
   // Check if current user is admin
+  const adminDb = createAdminClient();
   const { data: adminCheck } = user
-    ? await (await import("@/lib/supabase/admin")).createAdminClient()
+    ? await adminDb
         .from("authorized_phones")
         .select("is_admin")
         .eq("auth_user_id", user.id)
         .maybeSingle()
     : { data: null };
   const isAdmin = adminCheck?.is_admin ?? false;
+
+  // Fetch contactable members for admin dropdown (have auth_user_id, not already in game)
+  let adminContacts: { phone: string; name: string }[] = [];
+  if (isAdmin) {
+    const participantIds = new Set(data.game_participants.map((p: { user_id: string }) => p.user_id));
+    const { data: phones } = await adminDb
+      .from("authorized_phones")
+      .select("phone, display_name, auth_user_id")
+      .not("auth_user_id", "is", null);
+
+    const eligible = (phones ?? []).filter((p) => p.auth_user_id && !participantIds.has(p.auth_user_id));
+    const userIds = eligible.map((p) => p.auth_user_id as string);
+
+    const { data: profileNames } = userIds.length
+      ? await adminDb.from("profiles").select("id, name").in("id", userIds)
+      : { data: [] };
+    const profileMap = new Map((profileNames ?? []).map((p) => [p.id, p.name]));
+
+    adminContacts = eligible
+      .map((p) => ({
+        phone: p.phone,
+        name: profileMap.get(p.auth_user_id!) ?? p.display_name ?? p.phone,
+      }))
+      .filter((p) => p.name)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }
 
   // Fetch today's matches for this game
   const todayStart = new Date();
@@ -298,7 +326,7 @@ export default async function GamePage({ params }: Props) {
       <main className="max-w-2xl mx-auto px-4 py-5 space-y-4">
         {/* Actions */}
         <div className="bg-card rounded-2xl p-4 shadow-sm">
-          <GameActions game={game} currentUserId={user?.id ?? null} isAdmin={isAdmin} />
+          <GameActions game={game} currentUserId={user?.id ?? null} isAdmin={isAdmin} adminContacts={adminContacts} />
         </div>
 
         {/* Live match + history */}

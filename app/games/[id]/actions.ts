@@ -522,6 +522,56 @@ export async function promoteToPlayer(gameId: string, id: string, kind: "partici
   return { success: "Movido para a lista!" };
 }
 
+export async function addParticipantsByPhone(gameId: string, phones: string[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado", added: 0 };
+
+  const admin = createAdminClient();
+  const { data: caller } = await admin
+    .from("authorized_phones")
+    .select("is_admin")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (!caller?.is_admin) return { error: "Acesso negado", added: 0 };
+
+  const { data: game } = await admin
+    .from("games")
+    .select("status, game_participants(user_id)")
+    .eq("id", gameId)
+    .single();
+  if (!game) return { error: "Jogo não encontrado", added: 0 };
+  if (game.status !== "active") return { error: "Este jogo não está ativo", added: 0 };
+
+  const participantIds = new Set((game.game_participants as { user_id: string }[]).map((p) => p.user_id));
+
+  let added = 0;
+  const errors: string[] = [];
+
+  for (const phone of phones) {
+    const normalized = normalizePhone(phone);
+    if (!normalized || normalized.length < 10) { errors.push(`Telefone inválido: ${phone}`); continue; }
+
+    const { data: target } = await admin
+      .from("authorized_phones")
+      .select("auth_user_id, display_name")
+      .eq("phone", normalized)
+      .maybeSingle();
+
+    if (!target?.auth_user_id) { errors.push(`${phone}: não encontrado ou sem conta`); continue; }
+    if (participantIds.has(target.auth_user_id)) continue;
+
+    const { error } = await admin.from("game_participants").insert({
+      game_id: gameId,
+      user_id: target.auth_user_id,
+    });
+    if (!error) { added++; participantIds.add(target.auth_user_id); }
+  }
+
+  revalidatePath(`/games/${gameId}`);
+  return { added, errors };
+}
+
 export async function addParticipantByPhone(gameId: string, phone: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

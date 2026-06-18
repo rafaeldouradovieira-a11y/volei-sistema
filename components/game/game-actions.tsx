@@ -23,7 +23,7 @@ import {
   closeGame,
   cancelGame,
   saveProof,
-  addParticipantByPhone,
+  addParticipantsByPhone,
 } from "@/app/games/[id]/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { GameWithDetails } from "@/lib/supabase/types";
@@ -212,7 +212,11 @@ export function GameActions({ game, currentUserId, isAdmin = false, adminContact
           gameId={game.id}
           contacts={adminContacts}
           loading={loading}
-          onAdd={(phone) => handle(() => addParticipantByPhone(game.id, phone), "add-phone")}
+          onAdd={(phones) => handle(async () => {
+            const res = await addParticipantsByPhone(game.id, phones);
+            if (res.error) return { error: res.error };
+            return { success: res.added === 1 ? "1 pessoa adicionada!" : `${res.added} pessoas adicionadas!` };
+          }, "add-phone")}
         />
       )}
 
@@ -578,11 +582,11 @@ function AddByPhoneButton({
   gameId: string;
   contacts: AdminContact[];
   loading: string | null;
-  onAdd: (phone: string) => void;
+  onAdd: (phones: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<AdminContact | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const filtered = search.trim().length === 0
     ? contacts
@@ -591,23 +595,29 @@ function AddByPhoneButton({
         c.phone.includes(search.replace(/\D/g, ""))
       );
 
-  function handleSelect(c: AdminContact) {
-    setSelected(c);
-    setSearch(c.name);
+  function toggle(phone: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(phone) ? next.delete(phone) : next.add(phone);
+      return next;
+    });
   }
 
   function handleAdd() {
-    if (!selected || loading === "add-phone") return;
-    onAdd(selected.phone);
+    if (selected.size === 0 || loading === "add-phone") return;
+    onAdd([...selected]);
     setOpen(false);
-    setSelected(null);
-    setSearch("");
   }
 
   function handleOpenChange(o: boolean) {
     setOpen(o);
-    if (!o) { setSearch(""); setSelected(null); }
+    if (!o) { setSearch(""); setSelected(new Set()); }
   }
+
+  const n = selected.size;
+  const btnLabel = loading === "add-phone"
+    ? "Adicionando..."
+    : n === 0 ? "Selecione contatos" : n === 1 ? "Adicionar 1 pessoa" : `Adicionar ${n} pessoas`;
 
   return (
     <>
@@ -619,23 +629,23 @@ function AddByPhoneButton({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Adicionar participante</DialogTitle>
+            <DialogTitle>Adicionar participantes</DialogTitle>
             <DialogDescription>
               {contacts.length === 0
                 ? "Todos os membros autorizados já estão na lista."
-                : "Busque pelo nome ou telefone."}
+                : "Selecione uma ou mais pessoas."}
             </DialogDescription>
           </DialogHeader>
 
           {contacts.length > 0 && (
             <div className="space-y-3 mt-1">
-              {/* Search input */}
+              {/* Search */}
               <div className="field-input" style={{ borderBottom: "2px solid var(--color-brand)" }}>
                 <input
                   type="text"
                   placeholder="Buscar nome ou telefone..."
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setSelected(null); }}
+                  onChange={(e) => setSearch(e.target.value)}
                   autoFocus
                 />
               </div>
@@ -643,52 +653,58 @@ function AddByPhoneButton({
               {/* Contact list */}
               <div
                 className="rounded-xl overflow-y-auto"
-                style={{ maxHeight: 240, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                style={{ maxHeight: 260, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
               >
                 {filtered.length === 0 ? (
                   <p className="text-xs text-center text-muted-foreground py-6">Nenhum contato encontrado</p>
                 ) : (
                   filtered.map((c) => {
-                    const isActive = selected?.phone === c.phone;
+                    const on = selected.has(c.phone);
                     return (
                       <button
                         key={c.phone}
                         type="button"
-                        onClick={() => handleSelect(c)}
+                        onClick={() => toggle(c.phone)}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
-                        style={{
-                          background: isActive ? "rgba(12,43,26,0.18)" : undefined,
-                          borderLeft: isActive ? "3px solid var(--color-brand)" : "3px solid transparent",
-                        }}
+                        style={{ borderLeft: `3px solid ${on ? "var(--color-brand)" : "transparent"}` }}
                       >
+                        {/* Checkbox visual */}
+                        <div
+                          className="w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors"
+                          style={{
+                            background: on ? "var(--color-brand)" : "rgba(255,255,255,0.08)",
+                            border: on ? "none" : "1.5px solid rgba(255,255,255,0.2)",
+                          }}
+                        >
+                          {on && <span className="text-xs font-black" style={{ color: "var(--color-lime)", lineHeight: 1 }}>✓</span>}
+                        </div>
+
                         <div
                           className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold"
                           style={{
-                            background: isActive ? "var(--color-brand)" : "rgba(255,255,255,0.08)",
-                            color: isActive ? "var(--color-lime)" : "#e5e5e5",
+                            background: on ? "var(--color-brand)" : "rgba(255,255,255,0.1)",
+                            color: on ? "var(--color-lime)" : "#e5e5e5",
                             fontFamily: "var(--font-syne)",
                           }}
                         >
-                          {c.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
+                          {c.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                         </div>
+
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: isActive ? "var(--color-brand)" : "#f2f2f2" }}>
+                          <p className="text-sm font-semibold truncate" style={{ color: on ? "var(--color-brand)" : "#f2f2f2" }}>
                             {c.name}
                           </p>
                           <p className="text-xs text-muted-foreground">{c.phone}</p>
                         </div>
-                        {isActive && (
-                          <span className="text-xs font-bold shrink-0" style={{ color: "var(--color-brand)" }}>✓</span>
-                        )}
                       </button>
                     );
                   })
                 )}
               </div>
 
-              <ActionBtn variant="primary" disabled={!selected || loading === "add-phone"} onClick={handleAdd}>
+              <ActionBtn variant="primary" disabled={n === 0 || loading === "add-phone"} onClick={handleAdd}>
                 <UserPlus size={15} />
-                {loading === "add-phone" ? "Adicionando..." : selected ? `Adicionar ${selected.name.split(" ")[0]}` : "Selecione um contato"}
+                {btnLabel}
               </ActionBtn>
             </div>
           )}

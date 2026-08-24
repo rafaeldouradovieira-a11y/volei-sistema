@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import EditGameForm from "./form";
 import type { Game } from "@/lib/supabase/types";
 
@@ -20,7 +21,15 @@ export default async function EditGamePage({ params }: Props) {
   if (!data) notFound();
 
   const game = data as Game;
-  if (game.organizer_id !== user.id) redirect(`/games/${id}`);
+  if (game.organizer_id !== user.id) {
+    // Admins podem editar jogos de outros organizadores
+    const { data: adminCheck } = await createAdminClient()
+      .from("authorized_phones")
+      .select("is_admin")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    if (!adminCheck?.is_admin) redirect(`/games/${id}`);
+  }
 
   return <EditGameForm game={game} />;
 }

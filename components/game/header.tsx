@@ -66,7 +66,7 @@ export function Header({ profile, isAdmin = false }: HeaderProps) {
               href="/ranking"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:opacity-90"
               style={{ background: "rgba(255,255,255,0.1)", color: "var(--color-lime)" }}
-              title="Ranking"
+              title="Ranking de check-ins"
             >
               <Trophy size={14} />
             </Link>

@@ -4,19 +4,20 @@ import { ArrowLeft, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-type RankEntry = { id: string; name: string | null; wins: number };
+type RankEntry = { id: string; name: string | null; checkins: number };
 
-async function getRanking(supabase: Awaited<ReturnType<typeof createClient>>, since: Date) {
-  const { data: wins } = await supabase
-    .from("match_wins")
-    .select("player_id")
-    .gte("played_at", since.toISOString());
+async function getRanking(supabase: Awaited<ReturnType<typeof createClient>>, since: string) {
+  const { data: checkins } = await supabase
+    .from("game_participants")
+    .select("user_id, games!inner(date, status)")
+    .neq("games.status", "cancelled")
+    .gte("games.date", since);
 
-  if (!wins || wins.length === 0) return [];
+  if (!checkins || checkins.length === 0) return [];
 
   const countMap = new Map<string, number>();
-  for (const { player_id } of wins) {
-    countMap.set(player_id, (countMap.get(player_id) ?? 0) + 1);
+  for (const { user_id } of checkins) {
+    countMap.set(user_id, (countMap.get(user_id) ?? 0) + 1);
   }
 
   const playerIds = [...countMap.keys()];
@@ -28,15 +29,15 @@ async function getRanking(supabase: Awaited<ReturnType<typeof createClient>>, si
   if (!profiles) return [];
 
   return profiles
-    .map((p) => ({ id: p.id, name: p.name, wins: countMap.get(p.id) ?? 0 }))
-    .sort((a, b) => b.wins - a.wins);
+    .map((p) => ({ id: p.id, name: p.name, checkins: countMap.get(p.id) ?? 0 }))
+    .sort((a, b) => b.checkins - a.checkins);
 }
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
 function RankList({ entries }: { entries: RankEntry[] }) {
   if (entries.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-8">Nenhuma vitória registrada ainda</p>;
+    return <p className="text-sm text-muted-foreground text-center py-8">Nenhum check-in registrado ainda</p>;
   }
   return (
     <div className="space-y-1">
@@ -58,12 +59,16 @@ function RankList({ entries }: { entries: RankEntry[] }) {
               color: "var(--color-lime)",
             }}
           >
-            {e.wins}v
+            {e.checkins}
           </span>
         </div>
       ))}
     </div>
   );
+}
+
+function toDateStr(d: Date) {
+  return d.toISOString().slice(0, 10);
 }
 
 export default async function RankingPage({
@@ -77,12 +82,11 @@ export default async function RankingPage({
   const now = new Date();
   const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const epoch = new Date(0);
 
   const since =
-    tab === "monthly" ? monthStart :
-    tab === "all"     ? epoch      :
-                        weekAgo;
+    tab === "monthly" ? toDateStr(monthStart) :
+    tab === "all"     ? "1970-01-01"          :
+                        toDateStr(weekAgo);
 
   const entries = await getRanking(supabase, since);
 
@@ -108,7 +112,7 @@ export default async function RankingPage({
             className="text-xs font-semibold tracking-widest uppercase"
             style={{ color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-syne)" }}
           >
-            Ranking
+            Ranking de check-ins
           </span>
         </div>
 

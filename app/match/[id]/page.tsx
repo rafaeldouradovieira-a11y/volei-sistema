@@ -29,7 +29,9 @@ export default async function MatchPage({ params }: Props) {
 
   const adminClient = createAdminClient();
   const [{ data: starterProfile }, { data: adminCheck }] = await Promise.all([
-    supabase.from("profiles").select("name").eq("id", match.started_by).maybeSingle(),
+    match.started_by
+      ? supabase.from("profiles").select("name").eq("id", match.started_by).maybeSingle()
+      : Promise.resolve({ data: null }),
     adminClient.from("authorized_phones").select("is_admin").eq("auth_user_id", user.id).maybeSingle(),
   ]);
 

@@ -273,7 +273,7 @@ export type Database = {
         Row: {
           id: string;
           game_id: string;
-          started_by: string;
+          started_by: string | null;
           team1: MatchPlayer[];
           team2: MatchPlayer[];
           score1: number;
@@ -287,8 +287,8 @@ export type Database = {
           id?: string;
           game_id: string;
           started_by: string;
-          team1: MatchPlayer[];
-          team2: MatchPlayer[];
+          team1?: MatchPlayer[];
+          team2?: MatchPlayer[];
           score1?: number;
           score2?: number;
           winner?: number | null;
@@ -299,7 +299,7 @@ export type Database = {
         Update: {
           id?: string;
           game_id?: string;
-          started_by?: string;
+          started_by?: string | null;
           team1?: MatchPlayer[];
           team2?: MatchPlayer[];
           score1?: number;
@@ -308,27 +308,6 @@ export type Database = {
           status?: "live" | "finished";
           started_at?: string;
           ended_at?: string | null;
-        };
-        Relationships: [];
-      };
-      match_wins: {
-        Row: {
-          id: string;
-          match_id: string;
-          player_id: string;
-          played_at: string;
-        };
-        Insert: {
-          id?: string;
-          match_id: string;
-          player_id: string;
-          played_at?: string;
-        };
-        Update: {
-          id?: string;
-          match_id?: string;
-          player_id?: string;
-          played_at?: string;
         };
         Relationships: [];
       };
@@ -355,7 +334,6 @@ export type Game = Database["public"]["Tables"]["games"]["Row"];
 export type GameParticipant = Database["public"]["Tables"]["game_participants"]["Row"];
 export type WaitingListEntry = Database["public"]["Tables"]["waiting_list"]["Row"];
 export type Match = Database["public"]["Tables"]["matches"]["Row"];
-export type MatchWin = Database["public"]["Tables"]["match_wins"]["Row"];
 
 export type GameWithDetails = Game & {
   profiles: Profile;

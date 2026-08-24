@@ -88,13 +88,13 @@ export default async function GamePage({ params }: Props) {
   const allMatches = (matchesData ?? []) as Match[];
 
   // Enrich matches with starter names
-  const starterIds = [...new Set(allMatches.map((m) => m.started_by))];
+  const starterIds = [...new Set(allMatches.map((m) => m.started_by).filter((id): id is string => id !== null))];
   const { data: starterProfiles } = starterIds.length
     ? await supabase.from("profiles").select("id, name").in("id", starterIds)
     : { data: [] };
   const starterMap = new Map((starterProfiles ?? []).map((p) => [p.id, p.name]));
   const enrich = (m: Match): MatchWithStarter => ({
-    ...m, starterName: starterMap.get(m.started_by) ?? null,
+    ...m, starterName: (m.started_by && starterMap.get(m.started_by)) ?? null,
   });
 
   const liveMatch = allMatches.find((m) => m.status === "live") ? enrich(allMatches.find((m) => m.status === "live")!) : null;
@@ -147,15 +147,6 @@ export default async function GamePage({ params }: Props) {
       joinedAt: g.joined_at,
     })),
   ].sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
-
-  // Ordered the same as allPlayers so listNumber matches the visible player list
-  const selectablePlayers = allPlayers.map((p, i) => ({
-    id: p.kind === "participant" ? p.profileId : p.id,
-    name: p.name ?? "—",
-    type: p.kind as "participant" | "guest",
-    profile_id: p.kind === "participant" ? p.profileId : null,
-    listNumber: i + 1,
-  }));
 
   const allWaiting: WaitingItem[] = [
     ...game.waiting_list.map((w) => ({
@@ -336,7 +327,6 @@ export default async function GamePage({ params }: Props) {
           isAdmin={isAdmin}
           liveMatch={liveMatch}
           todayMatches={todayFinished}
-          allPlayers={selectablePlayers}
         />
 
         {/* Participant list */}

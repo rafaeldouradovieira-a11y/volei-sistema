@@ -68,12 +68,31 @@ export async function removePhone(id: string): Promise<AddPhoneResult> {
   try {
     const { admin } = await requireAdmin();
 
+    const { data: target } = await admin
+      .from("authorized_phones")
+      .select("auth_user_id")
+      .eq("id", id)
+      .maybeSingle();
+
     const { error } = await admin
       .from("authorized_phones")
       .delete()
       .eq("id", id);
 
     if (error) return { ok: false, error: error.message };
+
+    // Revoga o acesso: apaga o usuário de auth (cascata remove perfil e participações)
+    if (target?.auth_user_id) {
+      const { error: deleteUserError } = await admin.auth.admin.deleteUser(
+        target.auth_user_id
+      );
+      if (deleteUserError) {
+        return {
+          ok: false,
+          error: `Número removido, mas falha ao revogar o acesso: ${deleteUserError.message}`,
+        };
+      }
+    }
 
     revalidatePath("/admin");
     return { ok: true };

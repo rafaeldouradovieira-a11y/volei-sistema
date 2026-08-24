@@ -5,7 +5,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { canJoin, canLeave, isWithin48Hours } from "@/lib/game-time";
 import { normalizePhone } from "@/lib/phone";
-import type { MatchPlayer } from "@/lib/supabase/types";
 
 async function isCurrentUserAdmin(): Promise<boolean> {
   const supabase = await createClient();
@@ -20,9 +19,10 @@ async function isCurrentUserAdmin(): Promise<boolean> {
   return data?.is_admin ?? false;
 }
 
-// Promotes oldest waiting guests to active when within 48h and spots are available
+// Promotes oldest waiting guests to active when within 48h and spots are available.
+// Uses the service-role client: the caller may not be the inviter/organizer, and RLS
+// would silently block the status update otherwise.
 async function promoteWaitingGuests(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   gameId: string,
   gameDate: string,
   gameTime: string,
@@ -30,15 +30,16 @@ async function promoteWaitingGuests(
 ) {
   if (!isWithin48Hours(gameDate, gameTime)) return;
 
+  const admin = createAdminClient();
   const [{ count: pCount }, { count: gCount }] = await Promise.all([
-    supabase.from("game_participants").select("id", { count: "exact", head: true }).eq("game_id", gameId),
-    supabase.from("game_guests").select("id", { count: "exact", head: true }).eq("game_id", gameId).eq("status", "active"),
+    admin.from("game_participants").select("id", { count: "exact", head: true }).eq("game_id", gameId),
+    admin.from("game_guests").select("id", { count: "exact", head: true }).eq("game_id", gameId).eq("status", "active"),
   ]);
 
   const available = maxPlayers - ((pCount ?? 0) + (gCount ?? 0));
   if (available <= 0) return;
 
-  const { data: toPromote } = await supabase
+  const { data: toPromote } = await admin
     .from("game_guests")
     .select("id")
     .eq("game_id", gameId)
@@ -47,7 +48,7 @@ async function promoteWaitingGuests(
     .limit(available);
 
   if (!toPromote?.length) return;
-  await supabase.from("game_guests").update({ status: "active" }).in("id", toPromote.map((g) => g.id));
+  await admin.from("game_guests").update({ status: "active" }).in("id", toPromote.map((g) => g.id));
 }
 
 export async function joinGame(gameId: string) {
@@ -125,27 +126,28 @@ export async function leaveGame(gameId: string) {
 
   if (error) return { error: error.message };
 
-  // Promove primeiro da lista de espera, se houver
-  const { data: firstWaiting } = await supabase
+  // Promove primeiro da lista de espera, se houver.
+  // Service role: RLS não permite inserir/remover registros de outra pessoa.
+  const admin = createAdminClient();
+  const { data: firstWaiting } = await admin
     .from("waiting_list")
     .select("*")
     .eq("game_id", gameId)
     .order("joined_at", { ascending: true })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (firstWaiting) {
-    await supabase.from("game_participants").insert({
+    const { error: promoteError } = await admin.from("game_participants").insert({
       game_id: gameId,
       user_id: firstWaiting.user_id,
     });
-    await supabase
-      .from("waiting_list")
-      .delete()
-      .eq("id", firstWaiting.id);
+    if (!promoteError || promoteError.code === "23505") {
+      await admin.from("waiting_list").delete().eq("id", firstWaiting.id);
+    }
   } else {
     // No regular waiting participant — try to promote a waiting guest
-    await promoteWaitingGuests(supabase, gameId, game.date, game.time, game.max_players);
+    await promoteWaitingGuests(gameId, game.date, game.time, game.max_players);
   }
 
   revalidatePath(`/games/${gameId}`);
@@ -235,7 +237,8 @@ export async function closeGame(gameId: string) {
   if (!game || (!closeIsAdmin && game.organizer_id !== user.id))
     return { error: "Apenas o organizador pode encerrar o jogo" };
 
-  const { error } = await supabase
+  // Service role: RLS só permite update pelo organizador, o que anularia o bypass de admin
+  const { error } = await createAdminClient()
     .from("games")
     .update({ status: "closed" })
     .eq("id", gameId);
@@ -272,10 +275,15 @@ export async function addGuest(gameId: string, guestName: string) {
   if (!guestAdderIsAdmin && !isParticipant) return { error: "Apenas participantes podem adicionar convidados" };
 
   // Promote any 48h-eligible waiting guests before counting active spots
-  await promoteWaitingGuests(supabase, gameId, game.date, game.time, game.max_players);
+  await promoteWaitingGuests(gameId, game.date, game.time, game.max_players);
 
-  const activeGuestCount = game.game_guests.filter((g: { status: string }) => g.status === "active").length;
-  const totalActive = game.game_participants.length + activeGuestCount;
+  // Recount after promotion — the snapshot above may be stale
+  const { count: activeGuestCount } = await supabase
+    .from("game_guests")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", gameId)
+    .eq("status", "active");
+  const totalActive = game.game_participants.length + (activeGuestCount ?? 0);
 
   const within48h = isWithin48Hours(game.date, game.time);
   const isFull = totalActive >= game.max_players;
@@ -355,14 +363,20 @@ export async function saveProof(gameId: string, proofUrl: string) {
   return { success: "Comprovante enviado!" };
 }
 
-export async function startMatch(
-  gameId: string,
-  team1: MatchPlayer[],
-  team2: MatchPlayer[]
-) {
+export async function startMatch(gameId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Você precisa estar logado" };
+
+  const { data: participant } = await supabase
+    .from("game_participants")
+    .select("id")
+    .eq("game_id", gameId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!participant && !(await isCurrentUserAdmin()))
+    return { error: "Apenas participantes podem iniciar uma partida" };
 
   const { data: existing } = await supabase
     .from("matches")
@@ -375,11 +389,14 @@ export async function startMatch(
 
   const { data: match, error } = await supabase
     .from("matches")
-    .insert({ game_id: gameId, started_by: user.id, team1, team2 })
+    .insert({ game_id: gameId, started_by: user.id })
     .select()
     .single();
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.code === "23505") return { error: "Já há uma partida ao vivo para este jogo" };
+    return { error: error.message };
+  }
 
   revalidatePath(`/games/${gameId}`);
   return { success: "Partida iniciada!", matchId: match.id };
@@ -415,7 +432,8 @@ export async function updateGame(
   if (!game || (!editIsAdmin && game.organizer_id !== user.id))
     return { error: "Apenas o organizador pode editar o jogo" };
 
-  const { error } = await supabase
+  // Service role: RLS só permite update pelo organizador, o que anularia o bypass de admin
+  const { error } = await createAdminClient()
     .from("games")
     .update({
       title: formData.title || null,
@@ -644,7 +662,8 @@ export async function cancelGame(gameId: string) {
   if (!game || (!cancelIsAdmin && game.organizer_id !== user.id))
     return { error: "Apenas o organizador pode cancelar o jogo" };
 
-  const { error } = await supabase
+  // Service role: RLS só permite update pelo organizador, o que anularia o bypass de admin
+  const { error } = await createAdminClient()
     .from("games")
     .update({ status: "cancelled" })
     .eq("id", gameId);

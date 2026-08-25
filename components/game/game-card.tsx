@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MapPin, Clock } from "lucide-react";
 import type { GameWithDetails } from "@/lib/supabase/types";
+import { pricePerPerson as perPerson } from "@/lib/price";
 
 interface GameCardProps {
   game: GameWithDetails;
@@ -39,10 +40,7 @@ export function GameCard({ game }: GameCardProps) {
     .replace(".", "")
     .toUpperCase();
 
-  const pricePerPerson =
-    game.price_total && participantCount > 0
-      ? (game.price_total / participantCount).toFixed(2)
-      : null;
+  const pricePerPerson = perPerson(game.price_total, participantCount);
 
   return (
     <Link href={`/games/${game.id}`} className="block group">

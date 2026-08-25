@@ -28,6 +28,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { GameWithDetails } from "@/lib/supabase/types";
 import { canJoin, canLeave, getGameTimeStatus } from "@/lib/game-time";
+import { pricePerPerson as perPerson } from "@/lib/price";
 
 interface AdminContact {
   phone: string;
@@ -331,10 +332,7 @@ function PaymentSection({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const participantCount = game.game_participants.length + game.game_guests.filter((g) => g.status === "active").length;
-  const pricePerPerson =
-    game.price_total && participantCount > 0
-      ? (game.price_total / participantCount).toFixed(2)
-      : null;
+  const pricePerPerson = perPerson(game.price_total, participantCount);
 
   if (!game.pix_key && !pricePerPerson) return null;
 

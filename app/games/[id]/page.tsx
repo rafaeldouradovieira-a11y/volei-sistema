@@ -12,6 +12,7 @@ import { PromoteWaitingButton } from "@/components/game/promote-waiting-button";
 import { RemovePlayerButton } from "@/components/game/remove-player-button";
 import type { MatchWithStarter } from "@/components/game/match-section";
 import type { GameWithDetails, Match } from "@/lib/supabase/types";
+import { pricePerPerson as perPerson } from "@/lib/price";
 
 export const dynamic = "force-dynamic";
 
@@ -108,10 +109,7 @@ export default async function GamePage({ params }: Props) {
   const confirmedCount =
     game.game_participants.filter((p) => p.payment_status === "confirmed").length +
     activeGuests.filter((g) => g.payment_status === "confirmed").length;
-  const pricePerPerson =
-    game.price_total && participantCount > 0
-      ? (game.price_total / participantCount).toFixed(2)
-      : null;
+  const pricePerPerson = perPerson(game.price_total, participantCount);
 
   const fillPct = Math.min((participantCount / game.max_players) * 100, 100);
 

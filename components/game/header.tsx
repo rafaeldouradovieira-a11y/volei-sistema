@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Trophy } from "lucide-react";
+import { LogOut, Trophy, Award } from "lucide-react";
 import type { Profile } from "@/lib/supabase/types";
 
 interface HeaderProps {
@@ -62,6 +62,14 @@ export function Header({ profile, isAdmin = false }: HeaderProps) {
         {/* User area */}
         {profile ? (
           <div className="flex items-center gap-2">
+            <Link
+              href="/campeonato"
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:opacity-90"
+              style={{ background: "rgba(255,255,255,0.1)", color: "var(--color-lime)" }}
+              title="Campeonato"
+            >
+              <Award size={14} />
+            </Link>
             <Link
               href="/ranking"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:opacity-90"

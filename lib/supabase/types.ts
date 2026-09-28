@@ -311,6 +311,74 @@ export type Database = {
         };
         Relationships: [];
       };
+      championships: {
+        Row: {
+          id: string;
+          organizer_id: string;
+          title: string;
+          date: string | null;
+          status: "active" | "closed";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organizer_id: string;
+          title: string;
+          date?: string | null;
+          status?: "active" | "closed";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organizer_id?: string;
+          title?: string;
+          date?: string | null;
+          status?: "active" | "closed";
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "championships_organizer_id_fkey";
+            columns: ["organizer_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      championship_participants: {
+        Row: {
+          id: string;
+          championship_id: string;
+          user_id: string;
+          joined_at: string;
+        };
+        Insert: {
+          id?: string;
+          championship_id: string;
+          user_id: string;
+          joined_at?: string;
+        };
+        Update: {
+          id?: string;
+          championship_id?: string;
+          user_id?: string;
+          joined_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "championship_participants_championship_id_fkey";
+            columns: ["championship_id"];
+            referencedRelation: "championships";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "championship_participants_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -340,4 +408,12 @@ export type GameWithDetails = Game & {
   game_participants: (GameParticipant & { profiles: Profile })[];
   waiting_list: (WaitingListEntry & { profiles: Profile })[];
   game_guests: (GameGuest & { profiles: Profile })[];
+};
+
+export type Championship = Database["public"]["Tables"]["championships"]["Row"];
+export type ChampionshipParticipant = Database["public"]["Tables"]["championship_participants"]["Row"];
+
+export type ChampionshipWithDetails = Championship & {
+  profiles: Profile;
+  championship_participants: (ChampionshipParticipant & { profiles: Profile })[];
 };

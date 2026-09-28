@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 
 interface Props {
+  gameId: string;
   title: string;
   dayOfWeek: string;
   dateShort: string;
@@ -11,17 +12,19 @@ interface Props {
   court: string | null;
   startHour: number;
   endHour: number;
+  maxPlayers: number;
   players: { name: string }[];
 }
 
-export function CopyListButton({ title, dayOfWeek, dateShort, location, court, startHour, endHour, players }: Props) {
+export function CopyListButton({ gameId, title, dayOfWeek, dateShort, location, court, startHour, endHour, maxPlayers, players }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     const headerLine = `${title} ${dayOfWeek} ${dateShort}`;
     const locationLine = `${location}${court ? ` ${court}` : ""} - ${startHour}h às ${endHour}h`;
     const playerLines = players.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
-    const text = `${headerLine}\n${locationLine}\n\n${playerLines}`;
+    const link = `${window.location.origin}/games/${gameId}`;
+    const text = `${headerLine}\n${locationLine}\n\n${playerLines}\n\n${players.length}/${maxPlayers}\n${link}`;
 
     await navigator.clipboard.writeText(text);
     setCopied(true);

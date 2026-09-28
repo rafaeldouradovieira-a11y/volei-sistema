@@ -350,6 +350,7 @@ export default async function GamePage({ params }: Props) {
               )}
               {allPlayers.length > 0 && (
                 <CopyListButton
+                  gameId={game.id}
                   title={copyTitle}
                   dayOfWeek={dayOfWeekUpper}
                   dateShort={dateShort}
@@ -357,6 +358,7 @@ export default async function GamePage({ params }: Props) {
                   court={game.court ?? null}
                   startHour={startHour}
                   endHour={endHour}
+                  maxPlayers={game.max_players}
                   players={allPlayers.map((p) => ({ name: p.name ?? "—" }))}
                 />
               )}

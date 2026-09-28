@@ -317,6 +317,11 @@ export type Database = {
           organizer_id: string;
           title: string;
           date: string | null;
+          time: string | null;
+          location: string | null;
+          court: string | null;
+          price_per_person: number | null;
+          pix_key: string | null;
           status: "active" | "closed";
           created_at: string;
         };
@@ -325,6 +330,11 @@ export type Database = {
           organizer_id: string;
           title: string;
           date?: string | null;
+          time?: string | null;
+          location?: string | null;
+          court?: string | null;
+          price_per_person?: number | null;
+          pix_key?: string | null;
           status?: "active" | "closed";
           created_at?: string;
         };
@@ -333,6 +343,11 @@ export type Database = {
           organizer_id?: string;
           title?: string;
           date?: string | null;
+          time?: string | null;
+          location?: string | null;
+          court?: string | null;
+          price_per_person?: number | null;
+          pix_key?: string | null;
           status?: "active" | "closed";
           created_at?: string;
         };
@@ -351,18 +366,24 @@ export type Database = {
           championship_id: string;
           user_id: string;
           joined_at: string;
+          payment_status: "pending" | "confirmed";
+          proof_url: string | null;
         };
         Insert: {
           id?: string;
           championship_id: string;
           user_id: string;
           joined_at?: string;
+          payment_status?: "pending" | "confirmed";
+          proof_url?: string | null;
         };
         Update: {
           id?: string;
           championship_id?: string;
           user_id?: string;
           joined_at?: string;
+          payment_status?: "pending" | "confirmed";
+          proof_url?: string | null;
         };
         Relationships: [
           {

@@ -2,23 +2,28 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { updateChampionship } from "@/app/campeonato/[id]/actions";
+import type { Championship } from "@/lib/supabase/types";
 
-export function NewChampionshipForm() {
+interface Props {
+  championship: Championship;
+}
+
+export default function EditChampionshipForm({ championship }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    title: "",
-    date: "",
-    time: "",
-    location: "",
-    court: "",
-    price_per_person: "",
-    pix_key: "",
+    title: championship.title,
+    date: championship.date ?? "",
+    time: championship.time?.slice(0, 5) ?? "",
+    location: championship.location ?? "",
+    court: championship.court ?? "",
+    price_per_person: championship.price_per_person != null ? String(championship.price_per_person) : "",
+    pix_key: championship.pix_key ?? "",
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -28,32 +33,19 @@ export function NewChampionshipForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const supabase = createClient();
-
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/auth?redirect=/campeonato/new"); return; }
-
-      const { data, error } = await supabase
-        .from("championships")
-        .insert({
-          organizer_id: user.id,
-          title: form.title,
-          date: form.date || null,
-          time: form.time || null,
-          location: form.location || null,
-          court: form.court || null,
-          price_per_person: form.price_per_person ? parseFloat(form.price_per_person) : null,
-          pix_key: form.pix_key || null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      toast.success("Campeonato criado!");
-      router.push(`/campeonato/${data.id}`);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erro ao criar campeonato");
+      const res = await updateChampionship(championship.id, {
+        title: form.title,
+        date: form.date || null,
+        time: form.time || null,
+        location: form.location || null,
+        court: form.court || null,
+        price_per_person: form.price_per_person ? parseFloat(form.price_per_person) : null,
+        pix_key: form.pix_key || null,
+      });
+      if (res.error) { toast.error(res.error); return; }
+      toast.success("Campeonato atualizado!");
+      router.push(`/campeonato/${championship.id}`);
     } finally {
       setLoading(false);
     }
@@ -61,14 +53,11 @@ export function NewChampionshipForm() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-cream)" }}>
-      <header
-        className="sticky top-0 z-10"
-        style={{ background: "var(--color-brand)" }}
-      >
+      <header className="sticky top-0 z-10" style={{ background: "var(--color-brand)" }}>
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/campeonato">
+          <Link href={`/campeonato/${championship.id}`}>
             <button
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center"
               style={{ color: "rgba(255,255,255,0.7)" }}
             >
               <ArrowLeft size={18} />
@@ -78,7 +67,7 @@ export function NewChampionshipForm() {
             className="font-extrabold text-base tracking-tight"
             style={{ fontFamily: "var(--font-syne)", color: "var(--color-lime)" }}
           >
-            CRIAR CAMPEONATO
+            EDITAR CAMPEONATO
           </h1>
         </div>
       </header>
@@ -87,13 +76,7 @@ export function NewChampionshipForm() {
         <form onSubmit={handleSubmit} className="space-y-8">
           <Section title="Informações básicas">
             <Field label="Título *">
-              <input
-                name="title"
-                placeholder="Ex: Campeonato de Verão"
-                value={form.title}
-                onChange={handleChange}
-                required
-              />
+              <input name="title" value={form.title} onChange={handleChange} required />
             </Field>
             <div className="grid grid-cols-2 gap-6">
               <Field label="Data (opcional)">
@@ -107,12 +90,7 @@ export function NewChampionshipForm() {
 
           <Section title="Local">
             <Field label="Nome do local (opcional)">
-              <input
-                name="location"
-                placeholder="Ex: Arena Beach Club"
-                value={form.location}
-                onChange={handleChange}
-              />
+              <input name="location" placeholder="Ex: Arena Beach Club" value={form.location} onChange={handleChange} />
             </Field>
             <Field label="Quadra (opcional)">
               <input name="court" placeholder="Ex: Quadra 3" value={form.court} onChange={handleChange} />
@@ -133,12 +111,7 @@ export function NewChampionshipForm() {
                 />
               </Field>
               <Field label="Chave PIX">
-                <input
-                  name="pix_key"
-                  placeholder="CPF, e-mail, telefone..."
-                  value={form.pix_key}
-                  onChange={handleChange}
-                />
+                <input name="pix_key" placeholder="CPF, e-mail, telefone..." value={form.pix_key} onChange={handleChange} />
               </Field>
             </div>
           </Section>
@@ -154,7 +127,7 @@ export function NewChampionshipForm() {
               letterSpacing: "0.03em",
             }}
           >
-            {loading ? "Criando..." : "CRIAR CAMPEONATO"}
+            {loading ? "Salvando..." : "SALVAR ALTERAÇÕES"}
           </button>
         </form>
       </main>
@@ -162,13 +135,7 @@ export function NewChampionshipForm() {
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -185,13 +152,7 @@ function Section({
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label

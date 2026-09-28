@@ -91,3 +91,87 @@ export async function reopenChampionship(championshipId: string) {
   revalidatePath("/campeonato");
   return { success: "Campeonato reaberto!" };
 }
+
+export async function saveChampionshipProof(championshipId: string, proofUrl: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  const { error } = await supabase
+    .from("championship_participants")
+    .update({ proof_url: proofUrl })
+    .eq("championship_id", championshipId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/campeonato/${championshipId}`);
+  return { success: "Comprovante enviado!" };
+}
+
+export async function confirmMyChampionshipPayment(championshipId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  const { error } = await supabase
+    .from("championship_participants")
+    .update({ payment_status: "confirmed" })
+    .eq("championship_id", championshipId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/campeonato/${championshipId}`);
+  return { success: "Inscrição confirmada!" };
+}
+
+export async function confirmChampionshipParticipantPayment(
+  championshipId: string,
+  participantId: string
+) {
+  if (!(await isCurrentUserAdmin()))
+    return { error: "Apenas admins podem confirmar inscrições" };
+
+  const { error } = await createAdminClient()
+    .from("championship_participants")
+    .update({ payment_status: "confirmed" })
+    .eq("id", participantId)
+    .eq("championship_id", championshipId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/campeonato/${championshipId}`);
+  return { success: "Inscrição confirmada!" };
+}
+
+export async function updateChampionship(
+  championshipId: string,
+  formData: {
+    title: string;
+    date: string | null;
+    time: string | null;
+    location: string | null;
+    court: string | null;
+    price_per_person: number | null;
+    pix_key: string | null;
+  }
+) {
+  if (!(await isCurrentUserAdmin()))
+    return { error: "Apenas admins podem editar o campeonato" };
+
+  const { error } = await createAdminClient()
+    .from("championships")
+    .update({
+      title: formData.title,
+      date: formData.date,
+      time: formData.time,
+      location: formData.location,
+      court: formData.court,
+      price_per_person: formData.price_per_person,
+      pix_key: formData.pix_key,
+    })
+    .eq("id", championshipId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/campeonato/${championshipId}`);
+  revalidatePath("/campeonato");
+  return { success: "Campeonato atualizado!" };
+}

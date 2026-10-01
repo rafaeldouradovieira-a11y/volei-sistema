@@ -20,9 +20,11 @@ create table if not exists public.championship_votes (
 alter table public.championship_votes enable row level security;
 
 -- Votos são secretos: cada um só enxerga os próprios. Os potes são calculados no servidor.
+drop policy if exists "Voters can see their own votes" on public.championship_votes;
 create policy "Voters can see their own votes" on public.championship_votes
   for select using (auth.uid() = voter_id);
 
+drop policy if exists "Participants can vote" on public.championship_votes;
 create policy "Participants can vote" on public.championship_votes
   for insert with check (
     auth.uid() = voter_id and
@@ -33,8 +35,10 @@ create policy "Participants can vote" on public.championship_votes
     )
   );
 
+drop policy if exists "Voters can change their own votes" on public.championship_votes;
 create policy "Voters can change their own votes" on public.championship_votes
   for update using (auth.uid() = voter_id);
 
+drop policy if exists "Voters can remove their own votes" on public.championship_votes;
 create policy "Voters can remove their own votes" on public.championship_votes
   for delete using (auth.uid() = voter_id);

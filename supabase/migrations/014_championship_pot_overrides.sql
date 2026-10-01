@@ -11,5 +11,6 @@ create table if not exists public.championship_pot_overrides (
 alter table public.championship_pot_overrides enable row level security;
 
 -- Os potes são públicos depois da votação; escrita só pelo servidor (service role)
+drop policy if exists "Pot overrides are viewable by everyone" on public.championship_pot_overrides;
 create policy "Pot overrides are viewable by everyone" on public.championship_pot_overrides
   for select using (true);

@@ -18,8 +18,10 @@ create table if not exists public.championship_team_members (
 alter table public.championship_teams enable row level security;
 alter table public.championship_team_members enable row level security;
 
+drop policy if exists "Championship teams are viewable by everyone" on public.championship_teams;
 create policy "Championship teams are viewable by everyone" on public.championship_teams
   for select using (true);
 
+drop policy if exists "Championship team members are viewable by everyone" on public.championship_team_members;
 create policy "Championship team members are viewable by everyone" on public.championship_team_members
   for select using (true);

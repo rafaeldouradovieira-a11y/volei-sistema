@@ -1,3 +1,5 @@
+import type { ChampionshipStage } from "@/lib/championship-stage";
+
 export type Json =
   | string
   | number
@@ -15,6 +17,10 @@ export type Database = {
           name: string | null;
           phone: string | null;
           avatar_url: string | null;
+          age: number | null;
+          height_cm: number | null;
+          weight_kg: number | null;
+          gender: "F" | "M" | null;
           created_at: string;
         };
         Insert: {
@@ -22,6 +28,10 @@ export type Database = {
           name?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
+          age?: number | null;
+          height_cm?: number | null;
+          weight_kg?: number | null;
+          gender?: "F" | "M" | null;
           created_at?: string;
         };
         Update: {
@@ -29,6 +39,10 @@ export type Database = {
           name?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
+          age?: number | null;
+          height_cm?: number | null;
+          weight_kg?: number | null;
+          gender?: "F" | "M" | null;
           created_at?: string;
         };
         Relationships: [];
@@ -323,6 +337,7 @@ export type Database = {
           price_per_person: number | null;
           pix_key: string | null;
           status: "active" | "closed";
+          stage: ChampionshipStage;
           created_at: string;
         };
         Insert: {
@@ -336,6 +351,7 @@ export type Database = {
           price_per_person?: number | null;
           pix_key?: string | null;
           status?: "active" | "closed";
+          stage?: ChampionshipStage;
           created_at?: string;
         };
         Update: {
@@ -349,6 +365,7 @@ export type Database = {
           price_per_person?: number | null;
           pix_key?: string | null;
           status?: "active" | "closed";
+          stage?: ChampionshipStage;
           created_at?: string;
         };
         Relationships: [

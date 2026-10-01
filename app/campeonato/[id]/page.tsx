@@ -10,6 +10,9 @@ import { CheckinButton } from "@/components/campeonato/checkin-button";
 import { StatusButton } from "@/components/campeonato/status-button";
 import { CheckinPaymentButton } from "@/components/campeonato/checkin-payment-button";
 import { ConfirmCheckinButton } from "@/components/campeonato/confirm-checkin-button";
+import { StageSelect } from "@/components/campeonato/stage-select";
+import { STAGE_LABEL } from "@/lib/championship-stage";
+import { RulesTab } from "@/components/campeonato/rules-tab";
 import type { ChampionshipWithDetails } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +41,10 @@ export default async function ChampionshipPage({ params }: Props) {
 
   if (!data) notFound();
 
+  const { data: myProfile } = user
+    ? await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
+    : { data: null };
+
   const admin = createAdminClient();
   const { data: adminCheck } = user
     ? await admin
@@ -49,7 +56,10 @@ export default async function ChampionshipPage({ params }: Props) {
   const isAdmin = adminCheck?.is_admin ?? false;
 
   const championship = data as ChampionshipWithDetails;
-  const status = STATUS_CONFIG[championship.status];
+  const status =
+    championship.status === "active"
+      ? { ...STATUS_CONFIG.active, label: `Etapa: ${STAGE_LABEL[championship.stage]}` }
+      : STATUS_CONFIG.closed;
   const checkins = [...championship.championship_participants].sort(
     (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
   );
@@ -132,7 +142,8 @@ export default async function ChampionshipPage({ params }: Props) {
           </div>
 
           {isAdmin && (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StageSelect championshipId={championship.id} stage={championship.stage} />
               <StatusButton championshipId={championship.id} status={championship.status} />
             </div>
           )}
@@ -157,7 +168,7 @@ export default async function ChampionshipPage({ params }: Props) {
               className="flex-1 rounded-lg py-2 text-sm font-semibold transition-all"
               style={{ fontFamily: "var(--font-syne)" }}
             >
-              Seleção de times
+              Times
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
@@ -166,13 +177,27 @@ export default async function ChampionshipPage({ params }: Props) {
             >
               Tabela
             </TabsTrigger>
+            <TabsTrigger
+              value="regras"
+              className="flex-1 rounded-lg py-2 text-sm font-semibold transition-all"
+              style={{ fontFamily: "var(--font-syne)" }}
+            >
+              Regras
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="inscricao" className="space-y-4">
             {user ? (
-              championship.status === "active" ? (
+              championship.status === "active" && (championship.stage === "registration" || isCheckedIn) ? (
                 <>
-                  <CheckinButton championshipId={championship.id} checkedIn={isCheckedIn} />
+                  {championship.stage === "registration" ? (
+                    <CheckinButton
+                      championshipId={championship.id}
+                      checkedIn={isCheckedIn}
+                      userId={user.id}
+                      profile={myProfile}
+                    />
+                  ) : null}
                   {isCheckedIn && hasPaymentConfig && myCheckin?.payment_status === "pending" && (
                     <div className="flex justify-center">
                       <CheckinPaymentButton
@@ -283,6 +308,10 @@ export default async function ChampionshipPage({ params }: Props) {
 
           <TabsContent value="tabela">
             <ComingSoon />
+          </TabsContent>
+
+          <TabsContent value="regras">
+            <RulesTab currentStage={championship.stage} />
           </TabsContent>
         </Tabs>
       </main>

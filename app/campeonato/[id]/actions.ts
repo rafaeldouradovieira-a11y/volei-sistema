@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { isStage } from "@/lib/championship-stage";
+import { isProfileComplete } from "@/lib/championship-profile";
 
 async function isCurrentUserAdmin(): Promise<boolean> {
   const supabase = await createClient();
@@ -26,13 +28,21 @@ export async function checkinChampionship(championshipId: string) {
 
   const { data: championship } = await supabase
     .from("championships")
-    .select("status")
+    .select("status, stage")
     .eq("id", championshipId)
     .single();
 
   if (!championship) return { error: "Campeonato não encontrado" };
-  if (championship.status !== "active")
+  if (championship.status !== "active" || championship.stage !== "registration")
     return { error: "As inscrições deste campeonato estão encerradas" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!isProfileComplete(profile))
+    return { error: "Complete seu perfil (idade, altura, peso, gênero e foto) para se inscrever" };
 
   const { error } = await supabase.from("championship_participants").insert({
     championship_id: championshipId,
@@ -174,4 +184,57 @@ export async function updateChampionship(
   revalidatePath(`/campeonato/${championshipId}`);
   revalidatePath("/campeonato");
   return { success: "Campeonato atualizado!" };
+}
+
+export async function setChampionshipStage(championshipId: string, stage: string) {
+  if (!(await isCurrentUserAdmin()))
+    return { error: "Apenas admins podem mudar a etapa" };
+  if (!isStage(stage)) return { error: "Etapa inválida" };
+
+  const { error } = await createAdminClient()
+    .from("championships")
+    .update({ stage })
+    .eq("id", championshipId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/campeonato/${championshipId}`);
+  revalidatePath("/campeonato");
+  return { success: "Etapa atualizada!" };
+}
+
+export async function saveMyChampionshipProfile(data: {
+  age: number;
+  height_cm: number;
+  weight_kg: number;
+  gender: "F" | "M";
+  avatar_url?: string | null;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Você precisa estar logado" };
+
+  if (!Number.isInteger(data.age) || data.age < 5 || data.age > 100)
+    return { error: "Idade inválida" };
+  if (!Number.isInteger(data.height_cm) || data.height_cm < 100 || data.height_cm > 250)
+    return { error: "Altura inválida (em cm)" };
+  if (!(data.weight_kg >= 20 && data.weight_kg <= 300)) return { error: "Peso inválido (em kg)" };
+  if (data.gender !== "F" && data.gender !== "M") return { error: "Gênero inválido" };
+
+  const update: {
+    age: number;
+    height_cm: number;
+    weight_kg: number;
+    gender: "F" | "M";
+    avatar_url?: string;
+  } = {
+    age: data.age,
+    height_cm: data.height_cm,
+    weight_kg: data.weight_kg,
+    gender: data.gender,
+  };
+  if (data.avatar_url) update.avatar_url = data.avatar_url;
+
+  const { error } = await supabase.from("profiles").update(update).eq("id", user.id);
+  if (error) return { error: error.message };
+  return { success: "Perfil salvo!" };
 }

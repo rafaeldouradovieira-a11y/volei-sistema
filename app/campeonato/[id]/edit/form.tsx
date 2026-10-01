@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { isoToLocalInput, localInputToIso } from "@/lib/brt";
 import { updateChampionship } from "@/app/campeonato/[id]/actions";
 import type { Championship } from "@/lib/supabase/types";
 
@@ -24,6 +25,10 @@ export default function EditChampionshipForm({ championship }: Props) {
     court: championship.court ?? "",
     price_per_person: championship.price_per_person != null ? String(championship.price_per_person) : "",
     pix_key: championship.pix_key ?? "",
+    registration_start: championship.registration_start ?? "",
+    registration_end: championship.registration_end ?? "",
+    voting_end: isoToLocalInput(championship.voting_end),
+    draw_at: isoToLocalInput(championship.draw_at),
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -42,6 +47,10 @@ export default function EditChampionshipForm({ championship }: Props) {
         court: form.court || null,
         price_per_person: form.price_per_person ? parseFloat(form.price_per_person) : null,
         pix_key: form.pix_key || null,
+        registration_start: form.registration_start || null,
+        registration_end: form.registration_end || null,
+        voting_end: localInputToIso(form.voting_end),
+        draw_at: localInputToIso(form.draw_at),
       });
       if (res.error) { toast.error(res.error); return; }
       toast.success("Campeonato atualizado!");
@@ -86,6 +95,23 @@ export default function EditChampionshipForm({ championship }: Props) {
                 <input name="time" type="time" value={form.time} onChange={handleChange} />
               </Field>
             </div>
+          </Section>
+
+          <Section title="Datas das fases">
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="Inscrição — início">
+                <input name="registration_start" type="date" value={form.registration_start} onChange={handleChange} />
+              </Field>
+              <Field label="Inscrição — fim">
+                <input name="registration_end" type="date" value={form.registration_end} onChange={handleChange} />
+              </Field>
+            </div>
+            <Field label="Votação — termina em">
+              <input name="voting_end" type="datetime-local" value={form.voting_end} onChange={handleChange} />
+            </Field>
+            <Field label="Sorteio dos times — data e hora">
+              <input name="draw_at" type="datetime-local" value={form.draw_at} onChange={handleChange} />
+            </Field>
           </Section>
 
           <Section title="Local">

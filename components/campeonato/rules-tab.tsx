@@ -10,17 +10,19 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
+import { formatDateTimeBrt, formatDayMonth } from "@/lib/brt";
 import { STAGES, STAGE_LABEL, type ChampionshipStage } from "@/lib/championship-stage";
 
 const SYNE = { fontFamily: "var(--font-syne)" } as const;
 
-const STEPS: { icon: LucideIcon; label: string; when: string }[] = [
-  { icon: ClipboardList, label: "Inscrição", when: "Dia 1 ao 7" },
-  { icon: Vote, label: "Votação", when: "Até dia 14 · 18h" },
-  { icon: Shuffle, label: "Sorteio", when: "Dia 14 · 20h" },
-  { icon: CalendarDays, label: "Tabela", when: "Após o sorteio" },
-  { icon: Trophy, label: "Jogos", when: "Fase de grupos + playoffs" },
-];
+export interface RulesDates {
+  registration_start: string | null;
+  registration_end: string | null;
+  voting_end: string | null;
+  draw_at: string | null;
+}
+
+const TBD = "Data a definir";
 
 const POTS = [
   { name: "Meninas", emoji: "👩", hint: "Todas as meninas" },
@@ -29,8 +31,31 @@ const POTS = [
   { name: "Homens C", emoji: "🌱", hint: "Menores notas" },
 ];
 
-export function RulesTab({ currentStage }: { currentStage: ChampionshipStage }) {
+export function RulesTab({
+  currentStage,
+  dates,
+}: {
+  currentStage: ChampionshipStage;
+  dates: RulesDates;
+}) {
   const currentIndex = STAGES.indexOf(currentStage);
+
+  const start = formatDayMonth(dates.registration_start);
+  const end = formatDayMonth(dates.registration_end);
+  const registrationWhen =
+    start && end ? `${start} a ${end}` : end ? `Até ${end}` : start ? `A partir de ${start}` : TBD;
+  const votingEnd = formatDateTimeBrt(dates.voting_end);
+  const votingWhen = votingEnd ? `Até ${votingEnd}` : TBD;
+  const drawWhen = formatDateTimeBrt(dates.draw_at) ?? TBD;
+
+  const STEPS: { icon: LucideIcon; label: string; when: string }[] = [
+    { icon: ClipboardList, label: "Inscrição", when: registrationWhen },
+    { icon: Vote, label: "Votação", when: votingWhen },
+    { icon: Shuffle, label: "Sorteio", when: drawWhen },
+    { icon: CalendarDays, label: "Tabela", when: "Após o sorteio" },
+    { icon: Trophy, label: "Jogos", when: "Fase de grupos + playoffs" },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Linha do tempo */}
@@ -81,7 +106,7 @@ export function RulesTab({ currentStage }: { currentStage: ChampionshipStage }) 
         icon={ClipboardList}
         step="1"
         title="Inscrição"
-        when="Dia 1 ao 7"
+        when={registrationWhen}
       >
         <div
           className="rounded-xl p-4 flex items-center gap-3"
@@ -118,7 +143,7 @@ export function RulesTab({ currentStage }: { currentStage: ChampionshipStage }) 
         icon={Vote}
         step="2"
         title="Votação pros times"
-        when="Até dia 14 · 18h"
+        when={votingWhen}
       >
         <p className="text-sm text-muted-foreground mb-3">
           Com todos inscritos, cada um dá uma nota para os outros participantes:
@@ -139,6 +164,18 @@ export function RulesTab({ currentStage }: { currentStage: ChampionshipStage }) 
           Notas de 1 a 5 · você pode <strong className="text-foreground">pular</strong> quem
           não conhece.
         </p>
+        <ul className="text-xs text-muted-foreground mt-3 space-y-1.5 list-disc pl-4">
+          <li>Todo inscrito vota.</li>
+          <li>
+            Só os homens recebem nota — as meninas já têm um pote só delas. Você não vota em si
+            mesmo.
+          </li>
+          <li>Sem gênero no perfil, você fica fora dos potes — complete o perfil.</li>
+          <li>Seus votos são secretos.</li>
+          <li>
+            Vale a <strong className="text-foreground">média</strong> das notas recebidas.
+          </li>
+        </ul>
 
         <p className="text-sm text-muted-foreground mt-5 mb-3">
           Depois da votação, todos vão para <strong className="text-foreground">4 potes</strong>{" "}
@@ -160,12 +197,22 @@ export function RulesTab({ currentStage }: { currentStage: ChampionshipStage }) 
           ))}
         </div>
         <p className="text-xs text-muted-foreground mt-3">
-          Os homens são divididos em partes iguais. Ex.: 15 homens = 5 em cada pote.
+          Os homens são divididos em partes iguais. Ex.: 15 homens = 5 em cada pote. Se sobrar,
+          o pote A fica com o extra primeiro.
         </p>
+
+        <p className="text-sm font-bold mt-5 mb-2" style={SYNE}>
+          Empate na média? Sem sorteio:
+        </p>
+        <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal pl-4">
+          <li>Quem recebeu mais votos (mais gente opinou, nota mais confiável).</li>
+          <li>Quem recebeu mais notas 5.</li>
+          <li>Quem se inscreveu primeiro.</li>
+        </ol>
       </RuleCard>
 
       {/* 3. Sorteio */}
-      <RuleCard icon={Shuffle} step="3" title="Sorteio dos times" when="Dia 14 · 20h">
+      <RuleCard icon={Shuffle} step="3" title="Sorteio dos times" when={drawWhen}>
         <p className="text-sm text-muted-foreground mb-3">
           O admin sorteia no sistema. Cada time é formado por:
         </p>

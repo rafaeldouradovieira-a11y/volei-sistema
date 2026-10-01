@@ -338,6 +338,10 @@ export type Database = {
           pix_key: string | null;
           status: "active" | "closed";
           stage: ChampionshipStage;
+          registration_start: string | null;
+          registration_end: string | null;
+          voting_end: string | null;
+          draw_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -352,6 +356,10 @@ export type Database = {
           pix_key?: string | null;
           status?: "active" | "closed";
           stage?: ChampionshipStage;
+          registration_start?: string | null;
+          registration_end?: string | null;
+          voting_end?: string | null;
+          draw_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -366,6 +374,10 @@ export type Database = {
           pix_key?: string | null;
           status?: "active" | "closed";
           stage?: ChampionshipStage;
+          registration_start?: string | null;
+          registration_end?: string | null;
+          voting_end?: string | null;
+          draw_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -413,6 +425,99 @@ export type Database = {
             foreignKeyName: "championship_participants_user_id_fkey";
             columns: ["user_id"];
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      championship_votes: {
+        Row: {
+          id: string;
+          championship_id: string;
+          voter_id: string;
+          candidate_id: string;
+          score: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          championship_id: string;
+          voter_id: string;
+          candidate_id: string;
+          score: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          championship_id?: string;
+          voter_id?: string;
+          candidate_id?: string;
+          score?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "championship_votes_championship_id_fkey";
+            columns: ["championship_id"];
+            referencedRelation: "championships";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      championship_teams: {
+        Row: {
+          id: string;
+          championship_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          championship_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          championship_id?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "championship_teams_championship_id_fkey";
+            columns: ["championship_id"];
+            referencedRelation: "championships";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      championship_team_members: {
+        Row: {
+          id: string;
+          team_id: string;
+          championship_id: string;
+          user_id: string;
+          pot: "girls" | "A" | "B" | "C";
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          championship_id: string;
+          user_id: string;
+          pot: "girls" | "A" | "B" | "C";
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          championship_id?: string;
+          user_id?: string;
+          pot?: "girls" | "A" | "B" | "C";
+        };
+        Relationships: [
+          {
+            foreignKeyName: "championship_team_members_team_id_fkey";
+            columns: ["team_id"];
+            referencedRelation: "championship_teams";
             referencedColumns: ["id"];
           }
         ];

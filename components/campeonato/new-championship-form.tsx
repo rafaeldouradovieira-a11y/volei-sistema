@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { localInputToIso } from "@/lib/brt";
 
 export function NewChampionshipForm() {
   const router = useRouter();
@@ -19,6 +20,10 @@ export function NewChampionshipForm() {
     court: "",
     price_per_person: "",
     pix_key: "",
+    registration_start: "",
+    registration_end: "",
+    voting_end: "",
+    draw_at: "",
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -45,6 +50,10 @@ export function NewChampionshipForm() {
           court: form.court || null,
           price_per_person: form.price_per_person ? parseFloat(form.price_per_person) : null,
           pix_key: form.pix_key || null,
+          registration_start: form.registration_start || null,
+          registration_end: form.registration_end || null,
+          voting_end: localInputToIso(form.voting_end),
+          draw_at: localInputToIso(form.draw_at),
         })
         .select()
         .single();
@@ -103,6 +112,23 @@ export function NewChampionshipForm() {
                 <input name="time" type="time" value={form.time} onChange={handleChange} />
               </Field>
             </div>
+          </Section>
+
+          <Section title="Datas das fases">
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="Inscrição — início">
+                <input name="registration_start" type="date" value={form.registration_start} onChange={handleChange} />
+              </Field>
+              <Field label="Inscrição — fim">
+                <input name="registration_end" type="date" value={form.registration_end} onChange={handleChange} />
+              </Field>
+            </div>
+            <Field label="Votação — termina em">
+              <input name="voting_end" type="datetime-local" value={form.voting_end} onChange={handleChange} />
+            </Field>
+            <Field label="Sorteio dos times — data e hora">
+              <input name="draw_at" type="datetime-local" value={form.draw_at} onChange={handleChange} />
+            </Field>
           </Section>
 
           <Section title="Local">

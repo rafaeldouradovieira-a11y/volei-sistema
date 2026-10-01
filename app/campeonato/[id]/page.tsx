@@ -13,6 +13,14 @@ import { ConfirmCheckinButton } from "@/components/campeonato/confirm-checkin-bu
 import { StageSelect } from "@/components/campeonato/stage-select";
 import { STAGE_LABEL } from "@/lib/championship-stage";
 import { RulesTab } from "@/components/campeonato/rules-tab";
+import { VotingPanel, type VotingCandidate } from "@/components/campeonato/voting-panel";
+import { PotsView } from "@/components/campeonato/pots-view";
+import { DrawPanel } from "@/components/campeonato/draw-panel";
+import { TeamsView, type TeamWithMembers } from "@/components/campeonato/teams-view";
+import { CompleteProfileButton } from "@/components/campeonato/complete-profile-button";
+import { isProfileComplete } from "@/lib/championship-profile";
+import { buildPots, checkDraw, isVotable, type PotCandidate } from "@/lib/championship-pots";
+import { formatDateTimeBrt } from "@/lib/brt";
 import type { ChampionshipWithDetails } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +77,79 @@ export default async function ChampionshipPage({ params }: Props) {
     : null;
   const hasPaymentConfig = !!championship.pix_key || championship.price_per_person != null;
   const myCheckin = user ? checkins.find((c) => c.user_id === user.id) : undefined;
+
+  // Times: votação (inscritos) e potes (depois da votação; admin vê a prévia durante)
+  const stage = championship.stage;
+  const votingOpen = stage === "voting" && championship.status === "active";
+  const showPots = stage === "draw" || stage === "table" || stage === "games" || (votingOpen && isAdmin);
+
+  const candidates: VotingCandidate[] = checkins
+    .filter((c) => isVotable(c.profiles) && c.user_id !== user?.id)
+    .map((c) => ({
+      id: c.user_id,
+      name: c.profiles.name,
+      avatar_url: c.profiles.avatar_url,
+      age: c.profiles.age,
+      height_cm: c.profiles.height_cm,
+    }));
+
+  let myScores: Record<string, number> = {};
+  if (votingOpen && user && isCheckedIn) {
+    const { data: myVotes } = await supabase
+      .from("championship_votes")
+      .select("candidate_id, score")
+      .eq("championship_id", id)
+      .eq("voter_id", user.id);
+    myScores = Object.fromEntries((myVotes ?? []).map((v) => [v.candidate_id, v.score]));
+  }
+
+  let pots = null;
+  if (showPots) {
+    const { data: allVotes } = await admin
+      .from("championship_votes")
+      .select("candidate_id, score")
+      .eq("championship_id", id);
+    const potCandidates: PotCandidate[] = checkins.map((c) => ({
+      id: c.user_id,
+      name: c.profiles.name,
+      avatar_url: c.profiles.avatar_url,
+      gender: c.profiles.gender,
+      joined_at: c.joined_at,
+    }));
+    pots = buildPots(potCandidates, allVotes ?? []);
+  }
+  const drawCheck = pots ? checkDraw(pots) : null;
+
+  // Times sorteados
+  let teams: TeamWithMembers[] = [];
+  if (stage === "draw" || stage === "table" || stage === "games") {
+    const [{ data: teamRows }, { data: memberRows }] = await Promise.all([
+      supabase.from("championship_teams").select("id, name").eq("championship_id", id),
+      supabase
+        .from("championship_team_members")
+        .select("team_id, user_id, pot")
+        .eq("championship_id", id),
+    ]);
+    const byUser = new Map(checkins.map((c) => [c.user_id, c.profiles]));
+    const potOrder = { girls: 0, A: 1, B: 2, C: 3 };
+    teams = (teamRows ?? [])
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { numeric: true }))
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        members: (memberRows ?? [])
+          .filter((m) => m.team_id === t.id)
+          .sort((a, b) => potOrder[a.pot] - potOrder[b.pot])
+          .map((m) => ({
+            user_id: m.user_id,
+            name: byUser.get(m.user_id)?.name ?? null,
+            avatar_url: byUser.get(m.user_id)?.avatar_url ?? null,
+            pot: m.pot,
+          })),
+      }));
+  }
+  const needsProfile =
+    isCheckedIn && !isProfileComplete(myProfile) && (stage === "registration" || stage === "voting" || stage === "draw");
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-cream)" }}>
@@ -302,8 +383,83 @@ export default async function ChampionshipPage({ params }: Props) {
             </div>
           </TabsContent>
 
-          <TabsContent value="times">
-            <ComingSoon />
+          <TabsContent value="times" className="space-y-4">
+            {needsProfile && user && <CompleteProfileButton userId={user.id} profile={myProfile} />}
+
+            {stage === "registration" && (
+              <InfoCard
+                emoji="🗳️"
+                title="A votação ainda não começou"
+                text="Quando as inscrições fecharem, todo mundo vota nos jogadores para montar os potes."
+              />
+            )}
+
+            {votingOpen &&
+              (isCheckedIn ? (
+                <VotingPanel
+                  championshipId={championship.id}
+                  candidates={candidates}
+                  initialScores={myScores}
+                  deadline={formatDateTimeBrt(championship.voting_end)}
+                />
+              ) : (
+                <InfoCard
+                  emoji="🗳️"
+                  title="Votação aberta"
+                  text="Só quem está inscrito pode votar."
+                />
+              ))}
+
+            {stage === "voting" && championship.status !== "active" && (
+              <InfoCard emoji="🗳️" title="Votação encerrada" text="Aguarde o sorteio dos times." />
+            )}
+
+            {isAdmin && stage === "voting" && drawCheck?.message && (
+              <p
+                className="text-xs rounded-lg p-3"
+                style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24" }}
+              >
+                Sorteio: {drawCheck.message}
+              </p>
+            )}
+
+            {isAdmin && stage === "draw" && pots && drawCheck && (
+              <DrawPanel
+                championshipId={championship.id}
+                hasTeams={teams.length > 0}
+                canDraw={drawCheck.ok && championship.status === "active"}
+                problem={drawCheck.message}
+                unassignedNames={pots.unassigned.map((p) => p.name ?? "—")}
+              />
+            )}
+
+            {teams.length > 0 && (
+              <>
+                <h3
+                  className="text-sm font-bold tracking-wide uppercase pt-2"
+                  style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+                >
+                  Times
+                </h3>
+                <TeamsView teams={teams} />
+              </>
+            )}
+
+            {pots && (
+              <>
+                <h3
+                  className="text-sm font-bold tracking-wide uppercase pt-2"
+                  style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+                >
+                  {stage === "voting" ? "Prévia dos potes (só admin)" : "Potes"}
+                </h3>
+                <PotsView pots={pots} showStats={isAdmin} />
+              </>
+            )}
+
+            {stage === "draw" && teams.length === 0 && !isAdmin && (
+              <InfoCard emoji="🎲" title="Sorteio" text="Os times serão montados em breve." />
+            )}
           </TabsContent>
 
           <TabsContent value="tabela">
@@ -311,10 +467,30 @@ export default async function ChampionshipPage({ params }: Props) {
           </TabsContent>
 
           <TabsContent value="regras">
-            <RulesTab currentStage={championship.stage} />
+            <RulesTab
+              currentStage={championship.stage}
+              dates={{
+                registration_start: championship.registration_start,
+                registration_end: championship.registration_end,
+                voting_end: championship.voting_end,
+                draw_at: championship.draw_at,
+              }}
+            />
           </TabsContent>
         </Tabs>
       </main>
+    </div>
+  );
+}
+
+function InfoCard({ emoji, title, text }: { emoji: string; title: string; text: string }) {
+  return (
+    <div className="bg-card rounded-2xl p-5 shadow-sm text-center py-10 space-y-2">
+      <div className="text-4xl mb-2">{emoji}</div>
+      <p className="font-semibold text-base" style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}>
+        {title}
+      </p>
+      <p className="text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }

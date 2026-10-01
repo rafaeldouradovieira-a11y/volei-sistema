@@ -10,6 +10,7 @@ import { CheckinButton } from "@/components/campeonato/checkin-button";
 import { StatusButton } from "@/components/campeonato/status-button";
 import { CheckinPaymentButton } from "@/components/campeonato/checkin-payment-button";
 import { ConfirmCheckinButton } from "@/components/campeonato/confirm-checkin-button";
+import { CopyCheckinButton } from "@/components/campeonato/copy-checkin-button";
 import { StageSelect } from "@/components/campeonato/stage-select";
 import { STAGE_LABEL } from "@/lib/championship-stage";
 import { RulesTab } from "@/components/campeonato/rules-tab";
@@ -314,12 +315,20 @@ export default async function ChampionshipPage({ params }: Props) {
             )}
 
             <div className="bg-card rounded-2xl p-5 shadow-sm">
-              <h3
-                className="text-sm font-bold tracking-wide uppercase mb-4"
-                style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
-              >
-                Lista de inscritos
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3
+                  className="text-sm font-bold tracking-wide uppercase"
+                  style={{ fontFamily: "var(--font-syne)", color: "var(--color-brand)" }}
+                >
+                  Lista de inscritos
+                </h3>
+                {checkins.length > 0 && (
+                  <CopyCheckinButton
+                    championshipId={championship.id}
+                    players={checkins.map((c) => ({ name: c.profiles.name }))}
+                  />
+                )}
+              </div>
 
               {checkins.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">

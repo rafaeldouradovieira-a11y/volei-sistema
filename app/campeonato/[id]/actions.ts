@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { isStage } from "@/lib/championship-stage";
 import { isProfileComplete } from "@/lib/championship-profile";
-import { buildPots, checkDraw, type PotCandidate } from "@/lib/championship-pots";
+import { buildPots, checkDraw, type PotCandidate, type PotOverrides } from "@/lib/championship-pots";
 import { randomInt } from "node:crypto";
 
 async function isCurrentUserAdmin(): Promise<boolean> {
@@ -356,7 +356,15 @@ export async function drawChampionshipTeams(championshipId: string) {
     joined_at: r.joined_at,
   }));
 
-  const pots = buildPots(candidates, votes ?? []);
+  const { data: overrideRows } = await admin
+    .from("championship_pot_overrides")
+    .select("user_id, pot")
+    .eq("championship_id", championshipId);
+  const overrides: PotOverrides = Object.fromEntries(
+    (overrideRows ?? []).map((o) => [o.user_id, o.pot])
+  );
+
+  const pots = buildPots(candidates, votes ?? [], overrides);
   const check = checkDraw(pots);
   if (!check.ok) return { error: check.message ?? "Não foi possível sortear" };
 
@@ -397,4 +405,57 @@ export async function drawChampionshipTeams(championshipId: string) {
 
   revalidatePath(`/campeonato/${championshipId}`);
   return { success: `${check.teamCount} times sorteados!` };
+}
+
+// Admin move um homem para outro pote (A, B ou C). pot = null volta pro automático.
+export async function movePlayerToPot(
+  championshipId: string,
+  userId: string,
+  pot: "A" | "B" | "C" | null
+) {
+  if (!(await isCurrentUserAdmin()))
+    return { error: "Apenas admins podem mover jogadores de pote" };
+  if (pot !== null && pot !== "A" && pot !== "B" && pot !== "C")
+    return { error: "Pote inválido" };
+
+  const admin = createAdminClient();
+  const { data: championship } = await admin
+    .from("championships")
+    .select("status, stage")
+    .eq("id", championshipId)
+    .single();
+  if (!championship) return { error: "Campeonato não encontrado" };
+  if (championship.status !== "active" || (championship.stage !== "voting" && championship.stage !== "draw"))
+    return { error: "Os potes só podem ser ajustados nas etapas Votação e Sorteio" };
+
+  const { data: participant } = await admin
+    .from("championship_participants")
+    .select("user_id, profiles(gender)")
+    .eq("championship_id", championshipId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const gender = (participant as unknown as { profiles: { gender: "F" | "M" | null } | null } | null)
+    ?.profiles?.gender;
+  if (!participant) return { error: "Esse jogador não está inscrito" };
+  if (gender !== "M") return { error: "Só os homens entram nos potes A, B e C" };
+
+  if (pot === null) {
+    const { error } = await admin
+      .from("championship_pot_overrides")
+      .delete()
+      .eq("championship_id", championshipId)
+      .eq("user_id", userId);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await admin
+      .from("championship_pot_overrides")
+      .upsert(
+        { championship_id: championshipId, user_id: userId, pot },
+        { onConflict: "championship_id,user_id" }
+      );
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath(`/campeonato/${championshipId}`);
+  return { success: pot ? `Movido para o pote ${pot}` : "Voltou para o pote automático" };
 }

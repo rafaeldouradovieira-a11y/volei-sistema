@@ -209,6 +209,10 @@ export function RulesTab({
           <li>Quem recebeu mais notas 5.</li>
           <li>Quem se inscreveu primeiro.</li>
         </ol>
+        <p className="text-xs text-muted-foreground mt-3">
+          Se precisar, o admin pode ajustar os potes movendo alguém de um pote para outro antes do
+          sorteio.
+        </p>
       </RuleCard>
 
       {/* 3. Sorteio */}

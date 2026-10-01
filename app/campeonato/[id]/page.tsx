@@ -19,7 +19,7 @@ import { DrawPanel } from "@/components/campeonato/draw-panel";
 import { TeamsView, type TeamWithMembers } from "@/components/campeonato/teams-view";
 import { CompleteProfileButton } from "@/components/campeonato/complete-profile-button";
 import { isProfileComplete } from "@/lib/championship-profile";
-import { buildPots, checkDraw, isVotable, type PotCandidate } from "@/lib/championship-pots";
+import { buildPots, checkDraw, isVotable, type PotCandidate, type PotOverrides } from "@/lib/championship-pots";
 import { formatDateTimeBrt } from "@/lib/brt";
 import type { ChampionshipWithDetails } from "@/lib/supabase/types";
 
@@ -116,7 +116,14 @@ export default async function ChampionshipPage({ params }: Props) {
       gender: c.profiles.gender,
       joined_at: c.joined_at,
     }));
-    pots = buildPots(potCandidates, allVotes ?? []);
+    const { data: overrideRows } = await admin
+      .from("championship_pot_overrides")
+      .select("user_id, pot")
+      .eq("championship_id", id);
+    const overrides: PotOverrides = Object.fromEntries(
+      (overrideRows ?? []).map((o) => [o.user_id, o.pot])
+    );
+    pots = buildPots(potCandidates, allVotes ?? [], overrides);
   }
   const drawCheck = pots ? checkDraw(pots) : null;
 
@@ -453,7 +460,12 @@ export default async function ChampionshipPage({ params }: Props) {
                 >
                   {stage === "voting" ? "Prévia dos potes (só admin)" : "Potes"}
                 </h3>
-                <PotsView pots={pots} showStats={isAdmin} />
+                <PotsView
+                  championshipId={championship.id}
+                  pots={pots}
+                  showStats={isAdmin}
+                  canMove={isAdmin && championship.status === "active" && (stage === "voting" || stage === "draw")}
+                />
               </>
             )}
 

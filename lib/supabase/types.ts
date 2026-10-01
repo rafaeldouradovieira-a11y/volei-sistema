@@ -522,6 +522,34 @@ export type Database = {
           }
         ];
       };
+      championship_pot_overrides: {
+        Row: {
+          id: string;
+          championship_id: string;
+          user_id: string;
+          pot: "A" | "B" | "C";
+        };
+        Insert: {
+          id?: string;
+          championship_id: string;
+          user_id: string;
+          pot: "A" | "B" | "C";
+        };
+        Update: {
+          id?: string;
+          championship_id?: string;
+          user_id?: string;
+          pot?: "A" | "B" | "C";
+        };
+        Relationships: [
+          {
+            foreignKeyName: "championship_pot_overrides_championship_id_fkey";
+            columns: ["championship_id"];
+            referencedRelation: "championships";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

@@ -15,7 +15,12 @@ export interface RankedPlayer extends PotCandidate {
   average: number | null;
   votes: number;
   fives: number;
+  // true quando o admin moveu o jogador para outro pote
+  moved: boolean;
 }
+
+export type MalePot = "A" | "B" | "C";
+export type PotOverrides = Record<string, MalePot>;
 
 export interface Pots {
   // inscritos sem gênero no perfil: ainda não entram em nenhum pote
@@ -56,6 +61,7 @@ export function rankPlayers(candidates: PotCandidate[], votes: Vote[]): RankedPl
         average: s ? s.sum / s.count : null,
         votes: s?.count ?? 0,
         fives: s?.fives ?? 0,
+        moved: false,
       };
     })
     .sort(
@@ -69,7 +75,13 @@ export function rankPlayers(candidates: PotCandidate[], votes: Vote[]): RankedPl
 
 // Meninas num pote; homens ranqueados divididos em A (melhores), B e C.
 // Se não dividir certinho, o que sobra vai primeiro pro A, depois pro B (ex.: 16 homens = 6/5/5).
-export function buildPots(participants: PotCandidate[], votes: Vote[]): Pots {
+// Depois disso, aplica os ajustes manuais do admin (overrides): quem foi movido vai pro pote
+// escolhido, mantendo a ordem do ranking dentro de cada pote.
+export function buildPots(
+  participants: PotCandidate[],
+  votes: Vote[],
+  overrides: PotOverrides = {}
+): Pots {
   const girls = participants.filter((p) => p.gender === "F");
   const unassigned = participants.filter((p) => !p.gender);
   const ranked = rankPlayers(participants.filter(isVotable), votes);
@@ -79,13 +91,24 @@ export function buildPots(participants: PotCandidate[], votes: Vote[]): Pots {
   const sizeA = base + (extra > 0 ? 1 : 0);
   const sizeB = base + (extra > 1 ? 1 : 0);
 
-  return {
-    unassigned,
-    girls,
+  const automatic: Record<MalePot, RankedPlayer[]> = {
     A: ranked.slice(0, sizeA),
     B: ranked.slice(sizeA, sizeA + sizeB),
     C: ranked.slice(sizeA + sizeB),
   };
+
+  const rankIndex = new Map(ranked.map((p, i) => [p.id, i]));
+  const final: Record<MalePot, RankedPlayer[]> = { A: [], B: [], C: [] };
+  for (const pot of ["A", "B", "C"] as const) {
+    for (const player of automatic[pot]) {
+      const target = overrides[player.id] ?? pot;
+      final[target].push({ ...player, moved: target !== pot });
+    }
+  }
+  for (const pot of ["A", "B", "C"] as const)
+    final[pot].sort((a, b) => rankIndex.get(a.id)! - rankIndex.get(b.id)!);
+
+  return { unassigned, girls, ...final };
 }
 
 export interface DrawCheck {
@@ -95,23 +118,18 @@ export interface DrawCheck {
   message: string | null;
 }
 
-// Cada time = 1 menina + 1 de cada pote de homens, então precisa de
-// 1 menina e 3 homens por time (meninas = tamanho dos potes A, B e C).
+// Cada time = 1 menina + 1 de cada pote de homens, então os 4 potes precisam ter o mesmo
+// tamanho (nº de meninas = nº de times).
 export function checkDraw(pots: Pots): DrawCheck {
   const girls = pots.girls.length;
-  const men = pots.A.length + pots.B.length + pots.C.length;
-  if (girls === 0 || men === 0)
+  const { A, B, C } = pots;
+  if (girls === 0 || A.length + B.length + C.length === 0)
     return { ok: false, teamCount: 0, message: "Ainda não há meninas e homens suficientes para formar times." };
-  if (girls * 3 !== men) {
-    const needGirls = Math.ceil(men / 3);
-    const msg =
-      girls < needGirls
-        ? `Faltam ${needGirls - girls} menina(s) para fechar os times`
-        : `Sobram ${girls - needGirls} menina(s) ou faltam ${girls * 3 - men} homens`;
+  if (A.length !== girls || B.length !== girls || C.length !== girls) {
     return {
       ok: false,
       teamCount: 0,
-      message: `${msg} (hoje: ${girls} meninas e ${men} homens — cada time leva 1 menina e 3 homens).`,
+      message: `Os potes precisam ter o mesmo tamanho para fechar os times. Hoje: ${girls} meninas · A ${A.length} · B ${B.length} · C ${C.length}. Cada time leva 1 menina e 1 de cada pote — ajuste movendo homens entre os potes ou aguarde mais inscritos.`,
     };
   }
   return { ok: true, teamCount: girls, message: null };

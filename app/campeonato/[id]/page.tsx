@@ -12,6 +12,8 @@ import { CheckinPaymentButton } from "@/components/campeonato/checkin-payment-bu
 import { ConfirmCheckinButton } from "@/components/campeonato/confirm-checkin-button";
 import { CopyCheckinButton } from "@/components/campeonato/copy-checkin-button";
 import { StageSelect } from "@/components/campeonato/stage-select";
+import { Avatar } from "@/components/ui/avatar";
+import { StageProgress } from "@/components/campeonato/stage-progress";
 import { STAGE_LABEL } from "@/lib/championship-stage";
 import { RulesTab } from "@/components/campeonato/rules-tab";
 import { VotingPanel, type VotingCandidate } from "@/components/campeonato/voting-panel";
@@ -230,8 +232,12 @@ export default async function ChampionshipPage({ params }: Props) {
             </span>
           </div>
 
+          <div className="mt-4">
+            <StageProgress stage={championship.stage} closed={championship.status === "closed"} onDark />
+          </div>
+
           {isAdmin && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <StageSelect championshipId={championship.id} stage={championship.stage} />
               <StatusButton championshipId={championship.id} status={championship.status} />
             </div>
@@ -342,12 +348,15 @@ export default async function ChampionshipPage({ params }: Props) {
                       className="flex items-center gap-3 py-2.5 rounded-lg px-2 -mx-2 transition-colors hover:bg-muted/50"
                     >
                       <span
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                        style={{ background: "var(--color-brand)", color: "var(--color-lime)", fontFamily: "var(--font-syne)" }}
+                        className="w-5 text-xs font-bold text-center text-muted-foreground shrink-0"
+                        style={{ fontFamily: "var(--font-syne)" }}
                       >
                         {i + 1}
                       </span>
-                      <span className="flex-1 font-medium text-sm">{c.profiles.name ?? "—"}</span>
+                      <Link href={`/perfil/${c.user_id}`} className="shrink-0">
+                        <Avatar name={c.profiles.name} url={c.profiles.avatar_url} size={34} />
+                      </Link>
+                      <span className="flex-1 font-medium text-sm truncate">{c.profiles.name ?? "—"}</span>
 
                       {hasPaymentConfig && (
                         c.payment_status === "confirmed" ? (

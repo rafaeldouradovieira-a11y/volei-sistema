@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MapPin, Clock } from "lucide-react";
 import type { GameWithDetails } from "@/lib/supabase/types";
+import { AvatarStack } from "@/components/ui/avatar";
 import { pricePerPerson as perPerson } from "@/lib/price";
 
 interface GameCardProps {
@@ -123,6 +124,14 @@ export function GameCard({ game }: GameCardProps) {
                   />
                 </div>
                 <div className="flex items-center justify-between">
+                  {game.game_participants.length > 0 && (
+                    <AvatarStack
+                      people={game.game_participants.map((p) => ({
+                        name: p.profiles.name,
+                        avatar_url: p.profiles.avatar_url,
+                      }))}
+                    />
+                  )}
                   <span className="text-xs text-muted-foreground">
                     <span
                       className="score-number text-sm"

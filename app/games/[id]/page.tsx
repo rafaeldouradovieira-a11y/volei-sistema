@@ -6,6 +6,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, MapPin, Clock, Pencil } from "lucide-react";
 import { GameActions } from "@/components/game/game-actions";
+import { Avatar } from "@/components/ui/avatar";
 import { MatchSection } from "@/components/game/match-section";
 import { CopyListButton } from "@/components/game/copy-list-button";
 import { PromoteWaitingButton } from "@/components/game/promote-waiting-button";
@@ -115,7 +116,7 @@ export default async function GamePage({ params }: Props) {
 
   // Merge participants and guests sorted by join time
   type ListItem =
-    | { kind: "participant"; id: string; profileId: string; name: string | null; phone: string | null; paymentStatus: string; joinedAt: string }
+    | { kind: "participant"; id: string; profileId: string; name: string | null; avatarUrl: string | null; phone: string | null; paymentStatus: string; joinedAt: string }
     | { kind: "guest"; id: string; name: string; inviterName: string | null; paymentStatus: string; joinedAt: string };
 
   type WaitingItem =
@@ -132,6 +133,7 @@ export default async function GamePage({ params }: Props) {
       id: p.id,
       profileId: p.profiles.id,
       name: p.profiles.name,
+      avatarUrl: p.profiles.avatar_url,
       phone: p.profiles.phone,
       paymentStatus: p.payment_status,
       joinedAt: p.joined_at,
@@ -377,15 +379,18 @@ export default async function GamePage({ params }: Props) {
                   className="flex items-center gap-3 py-2.5 rounded-lg px-2 -mx-2 transition-colors hover:bg-muted/50"
                 >
                   <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                    style={{
-                      background: p.kind === "guest" ? "rgba(239,68,68,0.15)" : "var(--color-brand)",
-                      color: p.kind === "guest" ? "var(--color-brand)" : "var(--color-lime)",
-                      fontFamily: "var(--font-syne)",
-                    }}
+                    className="w-5 text-xs font-bold text-center text-muted-foreground shrink-0"
+                    style={{ fontFamily: "var(--font-syne)" }}
                   >
                     {i + 1}
                   </span>
+                  {p.kind === "participant" ? (
+                    <Link href={`/perfil/${p.profileId}`} className="shrink-0">
+                      <Avatar name={p.name} url={p.avatarUrl} size={34} />
+                    </Link>
+                  ) : (
+                    <Avatar name={p.name} url={null} size={34} />
+                  )}
                   <div className="flex-1 min-w-0">
                     <span className="font-medium text-sm">{p.name ?? "—"}</span>
                     {p.kind === "guest" ? (

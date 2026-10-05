@@ -20,6 +20,7 @@ interface Props {
 }
 
 const T1_BG = "#1d4ed8";
+const names = (t: Match["team1"]) => t.map((p) => p.name.split(" ")[0]).join(", ");
 const T2_BG = "#dc2626";
 
 export function MatchSection({ gameId, isParticipant, isAdmin = false, liveMatch, todayMatches }: Props) {
@@ -67,8 +68,8 @@ export function MatchSection({ gameId, isParticipant, isAdmin = false, liveMatch
               className="w-full rounded-xl overflow-hidden flex items-stretch transition-transform active:scale-[0.98]"
               onClick={() => router.push(`/match/${liveMatch.id}`)}
             >
-              <div className="flex-1 flex flex-col items-center py-4" style={{ background: T1_BG }}>
-                <span className="text-white/60 text-xs mb-1">Time 1</span>
+              <div className="flex-1 min-w-0 flex flex-col items-center py-4" style={{ background: T1_BG }}>
+                <span className="text-white/60 text-xs mb-1 px-2 text-center truncate max-w-full">{names(liveMatch.team1) || "Time 1"}</span>
                 <span className="text-white font-extrabold text-4xl" style={{ fontFamily: "var(--font-syne)" }}>
                   {liveMatch.score1}
                 </span>
@@ -76,8 +77,8 @@ export function MatchSection({ gameId, isParticipant, isAdmin = false, liveMatch
               <div className="flex items-center px-3" style={{ background: "#111" }}>
                 <ChevronRight size={16} color="rgba(255,255,255,0.4)" />
               </div>
-              <div className="flex-1 flex flex-col items-center py-4" style={{ background: T2_BG }}>
-                <span className="text-white/60 text-xs mb-1">Time 2</span>
+              <div className="flex-1 min-w-0 flex flex-col items-center py-4" style={{ background: T2_BG }}>
+                <span className="text-white/60 text-xs mb-1 px-2 text-center truncate max-w-full">{names(liveMatch.team2) || "Time 2"}</span>
                 <span className="text-white font-extrabold text-4xl" style={{ fontFamily: "var(--font-syne)" }}>
                   {liveMatch.score2}
                 </span>
@@ -129,10 +130,10 @@ export function MatchSection({ gameId, isParticipant, isAdmin = false, liveMatch
                   onClick={() => router.push(`/match/${m.id}`)}
                 >
                   <div
-                    className="flex-1 flex flex-col items-center py-2"
+                    className="flex-1 min-w-0 flex flex-col items-center py-2"
                     style={{ background: m.winner === 1 ? T1_BG : "rgba(29,78,216,0.25)" }}
                   >
-                    <span className="text-white/60 text-xs">T1</span>
+                    <span className="text-white/60 text-[10px] px-2 text-center truncate max-w-full">{names(m.team1) || "T1"}</span>
                     <span className="font-extrabold text-xl text-white" style={{ fontFamily: "var(--font-syne)" }}>
                       {m.score1}
                     </span>
@@ -141,10 +142,10 @@ export function MatchSection({ gameId, isParticipant, isAdmin = false, liveMatch
                     {m.winner ? <Trophy size={12} color="gold" /> : <span className="text-white/20 text-xs">×</span>}
                   </div>
                   <div
-                    className="flex-1 flex flex-col items-center py-2"
+                    className="flex-1 min-w-0 flex flex-col items-center py-2"
                     style={{ background: m.winner === 2 ? T2_BG : "rgba(220,38,38,0.25)" }}
                   >
-                    <span className="text-white/60 text-xs">T2</span>
+                    <span className="text-white/60 text-[10px] px-2 text-center truncate max-w-full">{names(m.team2) || "T2"}</span>
                     <span className="font-extrabold text-xl text-white" style={{ fontFamily: "var(--font-syne)" }}>
                       {m.score2}
                     </span>

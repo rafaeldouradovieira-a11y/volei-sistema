@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 import { ArrowLeft, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-type RankEntry = { id: string; name: string | null; checkins: number };
+type RankEntry = { id: string; name: string | null; avatar_url: string | null; checkins: number };
 
 async function getRanking(supabase: Awaited<ReturnType<typeof createClient>>, since: string) {
   const { data: checkins } = await supabase
@@ -23,13 +24,13 @@ async function getRanking(supabase: Awaited<ReturnType<typeof createClient>>, si
   const playerIds = [...countMap.keys()];
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, name")
+    .select("id, name, avatar_url")
     .in("id", playerIds);
 
   if (!profiles) return [];
 
   return profiles
-    .map((p) => ({ id: p.id, name: p.name, checkins: countMap.get(p.id) ?? 0 }))
+    .map((p) => ({ id: p.id, name: p.name, avatar_url: p.avatar_url, checkins: countMap.get(p.id) ?? 0 }))
     .sort((a, b) => b.checkins - a.checkins);
 }
 
@@ -48,9 +49,12 @@ function RankList({ entries }: { entries: RankEntry[] }) {
           style={{ background: i === 0 ? "oklch(0.97 0.03 85)" : "transparent" }}
         >
           <span className="text-xl w-7 text-center">{MEDAL[i] ?? `${i + 1}.`}</span>
-          <span className="flex-1 font-medium text-sm" style={{ color: "var(--color-brand)" }}>
-            {e.name ?? "—"}
-          </span>
+          <Link href={`/perfil/${e.id}`} className="flex flex-1 items-center gap-3 min-w-0">
+            <Avatar name={e.name} url={e.avatar_url} size={36} />
+            <span className="font-medium text-sm truncate" style={{ color: "var(--color-brand)" }}>
+              {e.name ?? "—"}
+            </span>
+          </Link>
           <span
             className="font-extrabold text-sm px-2 py-0.5 rounded-full"
             style={{

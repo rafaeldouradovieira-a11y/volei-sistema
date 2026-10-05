@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { LogOut, Trophy, Award } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import type { Profile } from "@/lib/supabase/types";
 
 interface HeaderProps {
@@ -22,15 +23,6 @@ export function Header({ profile, isAdmin = false }: HeaderProps) {
   }
 
   const firstName = profile?.name?.split(" ")[0] ?? "Usuário";
-  const initials = profile?.name
-    ? profile.name
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : "?";
-
   return (
     <header
       className="sticky top-0 z-20"
@@ -91,30 +83,15 @@ export function Header({ profile, isAdmin = false }: HeaderProps) {
                 Admin
               </Link>
             )}
-            <div
-              className="flex items-center gap-2 rounded-full px-3 py-1.5"
+            <Link
+              href={`/perfil/${profile.id}`}
+              className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 transition-colors hover:bg-white/15"
               style={{ background: "rgba(255,255,255,0.08)" }}
+              title="Meu perfil"
             >
-              <div
-                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden"
-                style={{
-                  background: profile.avatar_url ? "transparent" : "var(--color-lime)",
-                  color: "var(--color-brand)",
-                  fontFamily: "var(--font-syne)",
-                }}
-              >
-                {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  initials
-                )}
-              </div>
+              <Avatar name={profile.name} url={profile.avatar_url} size={26} />
               <span className="text-sm text-white/80">{firstName}</span>
-            </div>
+            </Link>
             <button
               onClick={handleSignOut}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"

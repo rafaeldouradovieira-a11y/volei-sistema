@@ -1,4 +1,4 @@
-import { Avatar } from "@/components/campeonato/voting-panel";
+import { Avatar } from "@/components/ui/avatar";
 import { PotMoveSelect } from "@/components/campeonato/pot-move-select";
 import type { Pots } from "@/lib/championship-pots";
 

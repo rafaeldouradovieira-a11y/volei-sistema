@@ -1,4 +1,4 @@
-import { Avatar } from "@/components/campeonato/voting-panel";
+import { Avatar } from "@/components/ui/avatar";
 
 export interface TeamWithMembers {
   id: string;

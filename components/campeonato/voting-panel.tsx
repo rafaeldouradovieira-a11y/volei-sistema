@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
 import { useState } from "react";
 import { toast } from "sonner";
 import { saveChampionshipVote } from "@/app/campeonato/[id]/actions";
@@ -128,32 +129,5 @@ export function VotingPanel({ championshipId, candidates, initialScores, deadlin
         </div>
       )}
     </div>
-  );
-}
-
-export function Avatar({ name, url, size = 40 }: { name: string | null; url: string | null; size?: number }) {
-  return url ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt={name ?? ""}
-      width={size}
-      height={size}
-      className="rounded-full object-cover shrink-0"
-      style={{ width: size, height: size }}
-    />
-  ) : (
-    <span
-      className="rounded-full flex items-center justify-center font-bold shrink-0"
-      style={{
-        width: size,
-        height: size,
-        background: "rgba(255,255,255,0.08)",
-        fontSize: size * 0.4,
-        ...SYNE,
-      }}
-    >
-      {(name ?? "?").charAt(0).toUpperCase()}
-    </span>
   );
 }

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users } from "lucide-react";
+import { Users, MapPin } from "lucide-react";
+import { AvatarStack } from "@/components/ui/avatar";
+import { StageProgress } from "@/components/campeonato/stage-progress";
+import { STAGE_LABEL } from "@/lib/championship-stage";
 import type { ChampionshipWithDetails } from "@/lib/supabase/types";
 
 interface Props {
@@ -14,7 +17,10 @@ const STATUS_CONFIG = {
 };
 
 export function ChampionshipCard({ championship }: Props) {
-  const status = STATUS_CONFIG[championship.status];
+  const status =
+    championship.status === "active"
+      ? { ...STATUS_CONFIG.active, label: STAGE_LABEL[championship.stage] }
+      : STATUS_CONFIG.closed;
   const dateLabel = championship.date
     ? format(parseISO(championship.date), "dd 'de' MMMM", { locale: ptBR })
     : null;
@@ -43,9 +49,28 @@ export function ChampionshipCard({ championship }: Props) {
           </span>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {dateLabel && <span>{dateLabel}</span>}
-          <span className="flex items-center gap-1">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+          {dateLabel && <span className="capitalize">{dateLabel}</span>}
+          {championship.location && (
+            <span className="flex items-center gap-1 truncate">
+              <MapPin size={11} />
+              <span className="truncate">{championship.location}</span>
+            </span>
+          )}
+        </div>
+
+        <StageProgress stage={championship.stage} closed={championship.status === "closed"} />
+
+        <div className="flex items-center justify-between mt-3">
+          <AvatarStack
+            people={championship.championship_participants.map((c) => ({
+              name: c.profiles.name,
+              avatar_url: c.profiles.avatar_url,
+            }))}
+            max={5}
+            size={26}
+          />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Users size={11} />
             {championship.championship_participants.length} inscritos
           </span>

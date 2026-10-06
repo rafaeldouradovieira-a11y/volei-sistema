@@ -4,8 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/game/header";
 import { GameCard } from "@/components/game/game-card";
-import { WeekMatches, type WeekMatch } from "@/components/game/week-matches";
-import type { GameWithDetails } from "@/lib/supabase/types";
+import { ChampionshipCta } from "@/components/campeonato/championship-cta";
+import type { ChampionshipWithDetails, GameWithDetails } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -42,13 +42,14 @@ export default async function HomePage() {
     .order("date", { ascending: false })
     .order("time", { ascending: false });
 
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const { data: weekMatches } = await supabase
-    .from("matches")
-    .select("*, games(title, location, date)")
-    .gte("started_at", weekAgo.toISOString())
-    .order("started_at", { ascending: false });
+  const { data: openChampionships } = await supabase
+    .from("championships")
+    .select("*, profiles(*), championship_participants(*, profiles(*))")
+    .eq("status", "active")
+    .eq("stage", "registration")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const openChampionship = (openChampionships?.[0] as ChampionshipWithDetails | undefined) ?? null;
 
   const activeGames =
     (games as GameWithDetails[] | null)?.filter(
@@ -101,7 +102,13 @@ export default async function HomePage() {
           )}
         </div>
 
-        {user && <WeekMatches matches={(weekMatches ?? []) as unknown as WeekMatch[]} />}
+        {openChampionship && (
+          <ChampionshipCta
+            championship={openChampionship}
+            loggedIn={!!user}
+            checkedIn={!!user && openChampionship.championship_participants.some((c) => c.user_id === user.id)}
+          />
+        )}
 
         <Tabs defaultValue="active">
           <TabsList

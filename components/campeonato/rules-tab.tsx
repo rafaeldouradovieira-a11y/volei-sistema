@@ -8,6 +8,11 @@ import {
   User,
   Camera,
   Star,
+  Flame,
+  Medal,
+  Coffee,
+  Dumbbell,
+  PartyPopper,
   type LucideIcon,
 } from "lucide-react";
 import { formatDateTimeBrt, formatDayMonth } from "@/lib/brt";
@@ -23,6 +28,24 @@ export interface RulesDates {
 }
 
 const TBD = "Data a definir";
+
+type Slot = { time: string; icon: LucideIcon; title: string; text?: string; highlight?: boolean };
+
+const SCHEDULE: Slot[] = [
+  { time: "16h – 16h30", icon: Dumbbell, title: "Aquecimento", text: "Nas duas quadras." },
+  {
+    time: "16h30 – 19h10",
+    icon: Flame,
+    title: "Fase classificatória",
+    text: "Jogos nas duas quadras. 15 partidas no total, cada time faz 6 jogos. Cada partida dura cerca de 15 a 20 minutos.",
+  },
+  { time: "19h10 – 19h30", icon: Coffee, title: "Intervalo", text: "Fechamento da classificação e organização dos playoffs." },
+  { time: "19h30 – 19h50", icon: Trophy, title: "Semifinal", text: "2º colocado x 3º colocado." },
+  { time: "19h50 – 20h10", icon: Trophy, title: "4º x 5º colocado" },
+  { time: "20h10 – 20h30", icon: Coffee, title: "Intervalo", text: "Preparação para a final." },
+  { time: "20h30 – 20h50", icon: Medal, title: "Grande final", text: "1º colocado x vencedor da semifinal.", highlight: true },
+  { time: "20h50 – 21h", icon: PartyPopper, title: "Encerramento e premiação" },
+];
 
 const POTS = [
   { name: "Meninas", emoji: "👩", hint: "Todas as meninas" },
@@ -53,7 +76,7 @@ export function RulesTab({
     { icon: Vote, label: "Votação", when: votingWhen },
     { icon: Shuffle, label: "Sorteio", when: drawWhen },
     { icon: CalendarDays, label: "Tabela", when: "Após o sorteio" },
-    { icon: Trophy, label: "Jogos", when: "Fase de grupos + playoffs" },
+    { icon: Trophy, label: "Jogos", when: "Classificatória + playoffs" },
   ];
 
   return (
@@ -99,6 +122,52 @@ export function RulesTab({
           </strong>
           .
         </p>
+      </section>
+
+      {/* Cronograma do dia */}
+      <section className="bg-card rounded-2xl p-5 shadow-sm">
+        <SectionTitle>Cronograma do dia</SectionTitle>
+        <p
+          className="text-sm rounded-xl p-3 mb-4"
+          style={{ background: "rgba(239,68,68,0.12)" }}
+        >
+          A ideia é <strong>todo mundo jogar bastante</strong>: 6 partidas garantidas na fase
+          classificatória e pelo menos mais um jogo depois dela.
+        </p>
+        <ol>
+          {SCHEDULE.map((slot, i) => {
+            const Icon = slot.icon;
+            const isLast = i === SCHEDULE.length - 1;
+            return (
+              <li key={slot.time} className="relative flex gap-3 pb-4 last:pb-0">
+                {!isLast && (
+                  <span
+                    className="absolute left-[15px] top-8 bottom-0 w-px"
+                    style={{ background: "rgba(255,255,255,0.12)" }}
+                  />
+                )}
+                <span
+                  className="relative w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+                    background: slot.highlight ? "var(--color-brand)" : "rgba(255,255,255,0.08)",
+                    color: slot.highlight ? "white" : "rgba(255,255,255,0.7)",
+                  }}
+                >
+                  <Icon size={15} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold" style={{ ...SYNE, color: "var(--color-brand)" }}>
+                    {slot.time}
+                  </p>
+                  <p className="font-bold text-sm" style={SYNE}>
+                    {slot.title}
+                  </p>
+                  {slot.text && <p className="text-xs text-muted-foreground mt-0.5">{slot.text}</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </section>
 
       {/* 1. Inscrição */}
@@ -245,8 +314,8 @@ export function RulesTab({
       {/* 4/5. Regras do jogo */}
       <RuleCard icon={Trophy} step="4" title="Tabela e jogos" when="Regras de jogo">
         <div className="grid grid-cols-2 gap-2">
-          <Stat value="6" label="partidas por time" />
-          <Stat value="3" label="melhores vão pros playoffs" />
+          <Stat value="6" label="jogos por time" />
+          <Stat value="15" label="partidas na classificatória" />
           <Stat value="2" label="sets por partida" />
           <Stat value="10" label="pontos por set" />
         </div>

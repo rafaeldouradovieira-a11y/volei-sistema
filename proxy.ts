@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { CHAMPIONSHIP_ENABLED } from "@/lib/features";
 
 export async function proxy(request: NextRequest) {
+  if (!CHAMPIONSHIP_ENABLED && request.nextUrl.pathname.startsWith("/campeonato")) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

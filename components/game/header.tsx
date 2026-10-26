@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { LogOut, Trophy, Award } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import type { Profile } from "@/lib/supabase/types";
+import { CHAMPIONSHIP_ENABLED } from "@/lib/features";
 
 interface HeaderProps {
   profile: Profile | null;
@@ -54,14 +55,14 @@ export function Header({ profile, isAdmin = false }: HeaderProps) {
         {/* User area */}
         {profile ? (
           <div className="flex items-center gap-2">
-            <Link
+            {CHAMPIONSHIP_ENABLED && <Link
               href="/campeonato"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:opacity-90"
               style={{ background: "rgba(255,255,255,0.1)", color: "var(--color-lime)" }}
               title="Campeonato"
             >
               <Award size={14} />
-            </Link>
+            </Link>}
             <Link
               href="/ranking"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:opacity-90"

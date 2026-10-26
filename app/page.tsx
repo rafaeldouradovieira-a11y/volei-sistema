@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/game/header";
 import { GameCard } from "@/components/game/game-card";
+import { CHAMPIONSHIP_ENABLED } from "@/lib/features";
 import { ChampionshipCta } from "@/components/campeonato/championship-cta";
 import type { ChampionshipWithDetails, GameWithDetails } from "@/lib/supabase/types";
 
@@ -42,13 +43,15 @@ export default async function HomePage() {
     .order("date", { ascending: false })
     .order("time", { ascending: false });
 
-  const { data: openChampionships } = await supabase
+  const { data: openChampionships } = CHAMPIONSHIP_ENABLED
+    ? await supabase
     .from("championships")
     .select("*, profiles(*), championship_participants(*, profiles(*))")
     .eq("status", "active")
     .eq("stage", "registration")
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(1)
+    : { data: null };
   const openChampionship = (openChampionships?.[0] as ChampionshipWithDetails | undefined) ?? null;
 
   const activeGames =

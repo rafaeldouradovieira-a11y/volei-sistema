@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui/avatar";
 import { EditProfileButton } from "@/components/perfil/edit-profile-button";
 import type { Match, Profile } from "@/lib/supabase/types";
+import { CHAMPIONSHIP_ENABLED } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function PerfilPage({ params }: Props) {
     { icon: CalendarCheck, label: "Check-ins", value: checkins ?? 0 },
     { icon: Swords, label: "Partidas", value: played.length },
     { icon: Trophy, label: "Vitórias", value: wins, sub: winRate != null ? `${winRate}%` : undefined },
-    { icon: Award, label: "Campeonatos", value: championships ?? 0 },
+    ...(CHAMPIONSHIP_ENABLED ? [{ icon: Award, label: "Campeonatos", value: championships ?? 0 }] : []),
   ];
 
   const bio = [
